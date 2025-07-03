@@ -34,8 +34,8 @@ class Settings(BaseSettings):
     ]
     
     # Configuration base de données
-    DATABASE_URL: str = "postgresql://agoraflux:password@localhost:5432/agoraflux_db"
-    DATABASE_ECHO: bool = False  # Active les logs SQL en développement
+    DATABASE_URL: str = "sqlite:///./agoraflux.db"
+    DATABASE_ECHO: bool = True  # Active les logs SQL en développement
     
     # Configuration authentification
     SECRET_KEY: str = "votre-cle-secrete-super-forte-changez-moi"
