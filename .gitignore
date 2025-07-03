@@ -1,0 +1,94 @@
+# === GLOBAL ===
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# === PYTHON/BACKEND ===
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+backend/venv/
+backend/.venv/
+backend/env/
+backend/ENV/
+
+# Python packages
+*.egg-info/
+dist/
+build/
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Database
+*.sqlite3
+*.db
+
+# AgoraFlux backend specific
+backend/exports/
+backend/data/uploads/
+backend/data/processed/
+
+# === NODE.JS/FRONTEND ===
+# Dependencies
+node_modules/
+frontend/node_modules/
+shared/node_modules/
+
+# Production builds
+frontend/dist/
+frontend/build/
+
+# Cache
+.cache/
+.parcel-cache/
+
+# === AGORAFLUX SPECIFIC ===
+# Data files
+data/raw/
+data/processed/
+data/exports/
+
+# Documentation builds
+docs/_build/
+docs/dist/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Project specific
+emmanuel_mingui_bttf-1.pdf 
