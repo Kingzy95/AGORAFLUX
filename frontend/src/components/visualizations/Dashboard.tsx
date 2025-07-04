@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -13,7 +13,13 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  SelectChangeEvent
+  SelectChangeEvent,
+  Drawer,
+  Fab,
+  Badge,
+  Tooltip,
+  Alert,
+  Snackbar
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -23,13 +29,20 @@ import {
   People as PeopleIcon,
   Assignment as ProjectIcon,
   Comment as CommentIcon,
-  LocationOn as LocationIcon
+  LocationOn as LocationIcon,
+  FilterList as FilterIcon,
+  TuneRounded as TuneIcon,
+  Share as ShareIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 
 import BarChart from '../charts/BarChart';
 import PieChart from '../charts/PieChart';
 import LineChart from '../charts/LineChart';
 import InteractiveMap from '../maps/InteractiveMap';
+import AdvancedFilters from '../filters/AdvancedFilters';
+import AnnotationSystem from '../annotations/AnnotationSystem';
+import ShareExportPanel from '../sharing/ShareExportPanel';
 
 import {
   mockBudgetData,
@@ -39,6 +52,9 @@ import {
   mockDemographicsData,
   mockGeneralStats
 } from '../../utils/data/mockData';
+
+import { FilterOptions } from '../../types/visualization';
+import { useAuth } from '../../context/AuthContext';
 
 interface StatCardProps {
   title: string;
@@ -113,24 +129,117 @@ const StatCard: React.FC<StatCardProps> = ({
 };
 
 const Dashboard: React.FC = () => {
+  const { user } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
+  // États pour les interactions
   const [timeRange, setTimeRange] = useState('6months');
   const [refreshing, setRefreshing] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<FilterOptions>({});
+  const [annotations, setAnnotations] = useState<any[]>([
+    {
+      id: '1',
+      userId: user?.id || 'demo',
+      userName: 'Marie Dupont',
+      userRole: 'utilisateur' as const,
+      x: 45,
+      y: 30,
+      content: 'Cette croissance du secteur éducation est remarquable ! Quelle en est la cause principale ?',
+      category: 'question' as const,
+      timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      isPrivate: false
+    },
+    {
+      id: '2',
+      userId: 'admin',
+      userName: 'Admin Municipal',
+      userRole: 'admin' as const,
+      x: 75,
+      y: 60,
+      content: 'Augmentation due aux nouveaux investissements dans les écoles primaires du programme 2024.',
+      category: 'insight' as const,
+      timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      isPrivate: false
+    }
+  ]);
+  
+  const [snackbar, setSnackbar] = useState<{open: boolean; message: string; severity: 'success' | 'error' | 'info'}>({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
+
+  // Refs pour les exports
+  const budgetChartRef = useRef<HTMLDivElement>(null);
+  const participationChartRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
 
   const handleTimeRangeChange = (event: SelectChangeEvent<string>) => {
     setTimeRange(event.target.value);
+    setSnackbar({
+      open: true,
+      message: `Période changée : ${event.target.value}`,
+      severity: 'info'
+    });
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    // Simulation d'un rechargement des données
     await new Promise(resolve => setTimeout(resolve, 1000));
     setRefreshing(false);
+    setSnackbar({
+      open: true,
+      message: 'Données mises à jour avec succès !',
+      severity: 'success'
+    });
   };
 
+  const handleFiltersChange = (filters: FilterOptions) => {
+    setActiveFilters(filters);
+    // Ici, on appliquerait les filtres aux données
+    console.log('Filtres appliqués:', filters);
+  };
+
+  const handleAddAnnotation = (annotation: any) => {
+    const newAnnotation = {
+      ...annotation,
+      id: Date.now().toString(),
+      timestamp: new Date()
+    };
+    setAnnotations(prev => [...prev, newAnnotation]);
+    setSnackbar({
+      open: true,
+      message: 'Annotation ajoutée avec succès !',
+      severity: 'success'
+    });
+  };
+
+  const handleUpdateAnnotation = (id: string, updates: any) => {
+    setAnnotations(prev => prev.map(ann => 
+      ann.id === id ? { ...ann, ...updates } : ann
+    ));
+  };
+
+  const handleDeleteAnnotation = (id: string) => {
+    setAnnotations(prev => prev.filter(ann => ann.id !== id));
+    setSnackbar({
+      open: true,
+      message: 'Annotation supprimée',
+      severity: 'info'
+    });
+  };
+
+  // Compter les filtres actifs
+  const activeFiltersCount = 
+    (activeFilters.categories?.length || 0) +
+    (activeFilters.regions?.length || 0) +
+    (activeFilters.status?.length || 0) +
+    (activeFilters.dateRange ? 1 : 0);
+
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: 3, position: 'relative' }}>
       {/* En-tête du tableau de bord */}
       <Box sx={{ mb: 4 }}>
         <Box sx={{ 
@@ -146,11 +255,11 @@ const Dashboard: React.FC = () => {
               Tableau de Bord AgoraFlux
             </Typography>
             <Typography variant="body1" color="text.secondary">
-              Vue d'ensemble de la participation citoyenne et des projets en cours
+              Explorez les données avec des filtres, annotations et partage en temps réel
             </Typography>
           </Box>
           
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
             <FormControl size="small" sx={{ minWidth: 120 }}>
               <InputLabel>Période</InputLabel>
               <Select
@@ -175,11 +284,27 @@ const Dashboard: React.FC = () => {
           </Box>
         </Box>
 
-        <Chip 
-          label="Dernière mise à jour: Aujourd'hui à 14h30" 
-          variant="outlined" 
-          size="small" 
-        />
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Chip 
+            label="Dernière mise à jour: Aujourd'hui à 14h30" 
+            variant="outlined" 
+            size="small" 
+          />
+          {activeFiltersCount > 0 && (
+            <Chip 
+              label={`${activeFiltersCount} filtre${activeFiltersCount > 1 ? 's' : ''} actif${activeFiltersCount > 1 ? 's' : ''}`}
+              color="primary" 
+              size="small" 
+            />
+          )}
+          {annotations.length > 0 && (
+            <Chip 
+              label={`${annotations.length} annotation${annotations.length > 1 ? 's' : ''}`}
+              color="secondary" 
+              size="small" 
+            />
+          )}
+        </Box>
       </Box>
 
       {/* Cartes de statistiques */}
@@ -230,26 +355,46 @@ const Dashboard: React.FC = () => {
         />
       </Box>
 
-      {/* Graphiques et visualisations */}
+      {/* Graphiques et visualisations avec interactions */}
       <Box sx={{ display: 'grid', gap: 3 }}>
-        {/* Première ligne - Évolution de la participation et démographie */}
+        {/* Première ligne - Évolution de la participation avec annotations */}
         <Box sx={{ 
           display: 'grid', 
           gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, 
           gap: 3 
         }}>
-          <LineChart
-            data={mockParticipationStats}
-            config={{
-              type: 'line',
-              title: 'Évolution de la participation citoyenne',
-              description: 'Nombre de participants, projets et commentaires par mois',
-              height: 400,
-              showLegend: true,
-              xAxisLabel: 'Mois',
-              yAxisLabel: 'Nombre'
-            }}
-          />
+          <Box ref={participationChartRef} sx={{ position: 'relative' }}>
+            <AnnotationSystem
+              chartId="participation-evolution"
+              annotations={annotations.filter(a => a.x < 60)}
+              onAddAnnotation={handleAddAnnotation}
+              onUpdateAnnotation={handleUpdateAnnotation}
+              onDeleteAnnotation={handleDeleteAnnotation}
+            >
+              <LineChart
+                data={mockParticipationStats}
+                config={{
+                  type: 'line',
+                  title: 'Évolution de la participation citoyenne',
+                  description: 'Nombre de participants, projets et commentaires par mois',
+                  height: 400,
+                  showLegend: true,
+                  xAxisLabel: 'Mois',
+                  yAxisLabel: 'Nombre'
+                }}
+              />
+            </AnnotationSystem>
+            
+            {/* Contrôles de partage pour ce graphique */}
+            <Box sx={{ position: 'absolute', bottom: 8, right: 8 }}>
+              <ShareExportPanel
+                chartId="participation-evolution"
+                chartTitle="Évolution de la participation citoyenne"
+                chartData={mockParticipationStats}
+                chartElement={participationChartRef.current}
+              />
+            </Box>
+          </Box>
           
           <PieChart
             data={mockDemographicsData}
@@ -263,27 +408,46 @@ const Dashboard: React.FC = () => {
           />
         </Box>
 
-        {/* Deuxième ligne - Budget et satisfaction */}
+        {/* Deuxième ligne - Budget avec annotations et satisfaction */}
         <Box sx={{ 
           display: 'grid', 
           gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, 
           gap: 3 
         }}>
-          <BarChart
-            data={mockBudgetData.map(item => ({
-              name: item.category,
-              value: item.amount,
-              color: item.color
-            }))}
-            config={{
-              type: 'bar',
-              title: 'Budget municipal par secteur',
-              description: 'Répartition du budget 2024 (en millions d\'euros)',
-              height: 400,
-              xAxisLabel: 'Secteurs',
-              yAxisLabel: 'Budget (M€)'
-            }}
-          />
+          <Box ref={budgetChartRef} sx={{ position: 'relative' }}>
+            <AnnotationSystem
+              chartId="budget-municipal"
+              annotations={annotations.filter(a => a.x >= 60)}
+              onAddAnnotation={handleAddAnnotation}
+              onUpdateAnnotation={handleUpdateAnnotation}
+              onDeleteAnnotation={handleDeleteAnnotation}
+            >
+              <BarChart
+                data={mockBudgetData.map(item => ({
+                  name: item.category,
+                  value: item.amount,
+                  color: item.color
+                }))}
+                config={{
+                  type: 'bar',
+                  title: 'Budget municipal par secteur',
+                  description: 'Répartition du budget 2024 (en millions d\'euros)',
+                  height: 400,
+                  xAxisLabel: 'Secteurs',
+                  yAxisLabel: 'Budget (M€)'
+                }}
+              />
+            </AnnotationSystem>
+            
+            <Box sx={{ position: 'absolute', bottom: 8, right: 8 }}>
+              <ShareExportPanel
+                chartId="budget-municipal"
+                chartTitle="Budget municipal par secteur"
+                chartData={mockBudgetData}
+                chartElement={budgetChartRef.current}
+              />
+            </Box>
+          </Box>
           
           <PieChart
             data={mockSatisfactionData}
@@ -297,32 +461,115 @@ const Dashboard: React.FC = () => {
           />
         </Box>
 
-        {/* Troisième ligne - Carte de participation */}
-        <InteractiveMap
-          data={mockParticipationData}
-          center={[48.8566, 2.3522]}
-          zoom={11}
-          height={500}
-          onMarkerClick={(data) => {
-            console.log('Arrondissement sélectionné:', data);
-          }}
-        />
+        {/* Troisième ligne - Carte interactive */}
+        <Box ref={mapRef} sx={{ position: 'relative' }}>
+          <InteractiveMap
+            data={mockParticipationData}
+            center={[48.8566, 2.3522]}
+            zoom={11}
+            height={500}
+            onMarkerClick={(data) => {
+              setSnackbar({
+                open: true,
+                message: `Arrondissement sélectionné : ${data.name} (${data.value} participants)`,
+                severity: 'info'
+              });
+            }}
+          />
+          
+          <Box sx={{ position: 'absolute', bottom: 8, right: 8 }}>
+            <ShareExportPanel
+              chartId="carte-participation"
+              chartTitle="Carte de participation par arrondissement"
+              chartData={mockParticipationData}
+              chartElement={mapRef.current}
+            />
+          </Box>
+        </Box>
       </Box>
+
+      {/* Bouton de filtres flottant */}
+      <Fab
+        color="primary"
+        sx={{ 
+          position: 'fixed', 
+          bottom: 24, 
+          right: 24,
+          zIndex: 1000
+        }}
+        onClick={() => setFiltersOpen(true)}
+      >
+        <Badge badgeContent={activeFiltersCount} color="error">
+          <TuneIcon />
+        </Badge>
+      </Fab>
+
+      {/* Drawer des filtres */}
+      <Drawer
+        anchor="right"
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        sx={{
+          '& .MuiDrawer-paper': {
+            width: { xs: '100%', sm: 400 },
+            p: 0
+          }
+        }}
+      >
+        <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="h6">Filtres de données</Typography>
+          <IconButton onClick={() => setFiltersOpen(false)}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        <Divider />
+        <Box sx={{ p: 2 }}>
+          <AdvancedFilters
+            onFiltersChange={handleFiltersChange}
+            defaultFilters={activeFilters}
+            compact={isMobile}
+          />
+        </Box>
+      </Drawer>
 
       <Divider sx={{ my: 4 }} />
 
       {/* Informations supplémentaires */}
       <Box sx={{ mt: 4 }}>
         <Typography variant="h6" gutterBottom>
-          Informations sur les données
+          Fonctionnalités interactives
         </Typography>
+        <Typography variant="body2" color="text.secondary" paragraph>
+          Ce tableau de bord propose des fonctionnalités avancées d'interaction :
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+          <Chip icon={<FilterIcon />} label="Filtres avancés" variant="outlined" size="small" />
+          <Chip icon={<CommentIcon />} label="Annotations collaboratives" variant="outlined" size="small" />
+          <Chip icon={<ShareIcon />} label="Partage et export" variant="outlined" size="small" />
+          <Chip icon={<LocationIcon />} label="Cartes interactives" variant="outlined" size="small" />
+        </Box>
         <Typography variant="body2" color="text.secondary">
-          Les données présentées dans ce tableau de bord sont mises à jour en temps réel 
-          et reflètent l'activité de la plateforme AgoraFlux. Les visualisations incluent 
-          des données budgétaires municipales, des statistiques de participation citoyenne 
-          et des métriques d'engagement par arrondissement parisien.
+          Utilisez le bouton de filtres en bas à droite pour explorer les données selon vos critères,
+          cliquez sur les graphiques pour ajouter des annotations, et partagez vos découvertes
+          avec les boutons d'export intégrés.
         </Typography>
       </Box>
+
+      {/* Snackbar pour les notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+          severity={snackbar.severity}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
