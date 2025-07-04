@@ -1,12 +1,10 @@
 """
 Configuration de la base de données pour AgoraFlux
-SQLAlchemy avec support PostgreSQL et SQLite
 """
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import StaticPool
 from typing import Generator
 
 from app.core.config import settings
@@ -14,36 +12,26 @@ from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Base pour les modèles SQLAlchemy
-Base = declarative_base()
+# Création de l'engine SQLAlchemy
+engine = create_engine(
+    settings.database_url_sync,
+    echo=settings.DATABASE_ECHO,
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,
+    pool_recycle=3600
+)
 
-# Configuration du moteur de base de données
-if settings.DATABASE_URL.startswith("sqlite"):
-    # Configuration SQLite pour développement
-    engine = create_engine(
-        settings.DATABASE_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-        echo=settings.DATABASE_ECHO
-    )
-else:
-    # Configuration PostgreSQL pour production
-    engine = create_engine(
-        settings.database_url_sync,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-        echo=settings.DATABASE_ECHO
-    )
-
-# Session factory
+# Création de la session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Base pour les modèles
+Base = declarative_base()
 
 
 def get_db() -> Generator[Session, None, None]:
     """
-    Générateur de session de base de données pour FastAPI
-    Utilisé comme dépendance dans les endpoints
+    Générateur de session de base de données pour les dépendances FastAPI
     """
     db = SessionLocal()
     try:

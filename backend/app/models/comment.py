@@ -7,21 +7,22 @@ from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Foreign
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import enum
+from datetime import datetime
 
 from app.core.database import Base
 
 
-class CommentStatus(str, enum.Enum):
+class CommentStatus(enum.Enum):
     """
-    Statut des commentaires pour la modération
+    Statut des commentaires
     """
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
+    ACTIVE = "active"
+    HIDDEN = "hidden"
     FLAGGED = "flagged"
+    DELETED = "deleted"
 
 
-class CommentType(str, enum.Enum):
+class CommentType(enum.Enum):
     """
     Types de commentaires
     """
@@ -33,107 +34,140 @@ class CommentType(str, enum.Enum):
 
 class Comment(Base):
     """
-    Modèle pour les commentaires et discussions asynchrones
-    Support de la modération et des threads selon le cahier des charges
+    Modèle commentaire pour la collaboration asynchrone
     """
     __tablename__ = "comments"
-
-    id = Column(Integer, primary_key=True, index=True)
     
-    # Contenu
+    # Identification
+    id = Column(Integer, primary_key=True, index=True)
     content = Column(Text, nullable=False)
-    comment_type = Column(Enum(CommentType), default=CommentType.COMMENT, nullable=False)
+    
+    # Type et statut
+    type = Column(Enum(CommentType), default=CommentType.COMMENT, nullable=False)
+    status = Column(Enum(CommentStatus), default=CommentStatus.ACTIVE, nullable=False)
     
     # Relations
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    author = relationship("User", foreign_keys=[author_id], back_populates="comments")
-    
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    project = relationship("Project", back_populates="comments")
     
-    # Support des threads (commentaires imbriqués)
+    # Thread de discussion
     parent_id = Column(Integer, ForeignKey("comments.id"), nullable=True)
-    parent = relationship("Comment", remote_side=[id], backref="replies")
-    
-    # Modération
-    status = Column(Enum(CommentStatus), default=CommentStatus.APPROVED, nullable=False)
-    moderated_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    moderated_by = relationship("User", foreign_keys=[moderated_by_id])
-    moderated_at = Column(DateTime(timezone=True), nullable=True)
-    moderation_reason = Column(Text, nullable=True)
-    
-    # Métadonnées
-    is_edited = Column(Boolean, default=False)
-    edit_count = Column(Integer, default=0)
-    is_pinned = Column(Boolean, default=False)
+    thread_depth = Column(Integer, default=0, nullable=False)
     
     # Interactions
-    like_count = Column(Integer, default=0)
-    flag_count = Column(Integer, default=0)
-    reply_count = Column(Integer, default=0)
+    likes_count = Column(Integer, default=0, nullable=False)
+    replies_count = Column(Integer, default=0, nullable=False)
+    flags_count = Column(Integer, default=0, nullable=False)
     
-    # Informations temporelles
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    # Modération
+    is_edited = Column(Boolean, default=False, nullable=False)
+    is_pinned = Column(Boolean, default=False, nullable=False)
+    is_highlighted = Column(Boolean, default=False, nullable=False)
     
-    # Métadonnées pour annotations (optionnel)
-    annotation_target = Column(String(255), nullable=True)  # ID de l'élément annoté
-    annotation_position = Column(String(100), nullable=True)  # Position dans l'interface
-
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    edited_at = Column(DateTime, nullable=True)
+    
+    # Relations
+    author = relationship("User", back_populates="comments")
+    project = relationship("Project", back_populates="comments")
+    parent = relationship("Comment", remote_side=[id], backref="replies")
+    
     def __repr__(self):
-        return f"<Comment(id={self.id}, type='{self.comment_type}')>"
+        return f"<Comment(id={self.id}, type={self.type.value}, author_id={self.author_id})>"
     
     @property
-    def is_reply(self) -> bool:
-        """Vérifie si c'est une réponse à un autre commentaire"""
-        return self.parent_id is not None
+    def is_active(self):
+        """Vérifie si le commentaire est actif"""
+        return self.status == CommentStatus.ACTIVE
     
     @property
-    def is_top_level(self) -> bool:
+    def is_hidden(self):
+        """Vérifie si le commentaire est masqué"""
+        return self.status == CommentStatus.HIDDEN
+    
+    @property
+    def is_flagged(self):
+        """Vérifie si le commentaire est signalé"""
+        return self.status == CommentStatus.FLAGGED
+    
+    @property
+    def is_deleted(self):
+        """Vérifie si le commentaire est supprimé"""
+        return self.status == CommentStatus.DELETED
+    
+    @property
+    def is_top_level(self):
         """Vérifie si c'est un commentaire de premier niveau"""
         return self.parent_id is None
     
     @property
-    def needs_moderation(self) -> bool:
-        """Vérifie si le commentaire nécessite une modération"""
-        return self.status == CommentStatus.PENDING or self.flag_count > 0
+    def is_reply(self):
+        """Vérifie si c'est une réponse"""
+        return self.parent_id is not None
     
     @property
-    def is_visible(self) -> bool:
-        """Vérifie si le commentaire est visible publiquement"""
-        return self.status == CommentStatus.APPROVED
+    def content_preview(self):
+        """Retourne un aperçu du contenu (100 premiers caractères)"""
+        if len(self.content) <= 100:
+            return self.content
+        return self.content[:97] + "..."
     
-    def mark_as_edited(self):
-        """Marque le commentaire comme édité"""
-        self.is_edited = True
-        self.edit_count += 1
-        self.updated_at = func.now()
+    def increment_likes(self):
+        """Incrémente le nombre de likes"""
+        self.likes_count += 1
     
-    def add_like(self):
-        """Ajoute un like au commentaire"""
-        self.like_count += 1
+    def decrement_likes(self):
+        """Décrémente le nombre de likes"""
+        if self.likes_count > 0:
+            self.likes_count -= 1
     
-    def remove_like(self):
-        """Retire un like du commentaire"""
-        if self.like_count > 0:
-            self.like_count -= 1
+    def increment_replies(self):
+        """Incrémente le nombre de réponses"""
+        self.replies_count += 1
     
-    def add_flag(self):
+    def decrement_replies(self):
+        """Décrémente le nombre de réponses"""
+        if self.replies_count > 0:
+            self.replies_count -= 1
+    
+    def flag_comment(self):
         """Signale le commentaire"""
-        self.flag_count += 1
-        if self.flag_count >= 3:  # Seuil de modération automatique
+        self.flags_count += 1
+        if self.flags_count >= 3:  # Seuil pour masquer automatiquement
             self.status = CommentStatus.FLAGGED
     
-    def approve(self, moderator_id: int, reason: str = None):
-        """Approuve le commentaire"""
-        self.status = CommentStatus.APPROVED
-        self.moderated_by_id = moderator_id
-        self.moderated_at = func.now()
-        self.moderation_reason = reason
+    def hide_comment(self):
+        """Masque le commentaire"""
+        self.status = CommentStatus.HIDDEN
     
-    def reject(self, moderator_id: int, reason: str):
-        """Rejette le commentaire"""
-        self.status = CommentStatus.REJECTED
-        self.moderated_by_id = moderator_id
-        self.moderated_at = func.now()
-        self.moderation_reason = reason 
+    def delete_comment(self):
+        """Supprime le commentaire"""
+        self.status = CommentStatus.DELETED
+    
+    def restore_comment(self):
+        """Restaure le commentaire"""
+        self.status = CommentStatus.ACTIVE
+    
+    def pin_comment(self):
+        """Épingle le commentaire"""
+        self.is_pinned = True
+    
+    def unpin_comment(self):
+        """Désépingle le commentaire"""
+        self.is_pinned = False
+    
+    def highlight_comment(self):
+        """Met en évidence le commentaire"""
+        self.is_highlighted = True
+    
+    def unhighlight_comment(self):
+        """Retire la mise en évidence"""
+        self.is_highlighted = False
+    
+    def edit_content(self, new_content: str):
+        """Modifie le contenu du commentaire"""
+        self.content = new_content
+        self.is_edited = True
+        self.edited_at = datetime.utcnow() 

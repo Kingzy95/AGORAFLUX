@@ -1,6 +1,6 @@
 """
 Configuration du système de logging pour AgoraFlux
-Utilise Loguru pour un logging structuré et performant
+Utilise Loguru pour un logging moderne et flexible
 """
 
 import sys
@@ -11,72 +11,60 @@ from app.core.config import settings
 
 def setup_logging():
     """
-    Configure le système de logging de l'application
+    Configure le système de logging avec Loguru
     """
-    # Supprimer la configuration par défaut de loguru
+    # Supprimer la configuration par défaut
     logger.remove()
     
     # Configuration pour la console (développement)
-    if settings.is_development:
+    if settings.DEBUG:
         logger.add(
             sys.stdout,
+            level="DEBUG",
             format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
                    "<level>{level: <8}</level> | "
                    "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
                    "<level>{message}</level>",
-            level=settings.LOG_LEVEL,
-            colorize=True
+            colorize=True,
+        )
+    else:
+        logger.add(
+            sys.stdout,
+            level="INFO",
+            format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message}",
         )
     
-    # Configuration pour fichier de logs
-    log_file_path = Path(settings.LOG_FILE)
-    log_file_path.parent.mkdir(parents=True, exist_ok=True)
+    # Configuration pour les fichiers de log
+    log_path = Path(settings.LOG_FILE)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     
-    # Logs généraux avec rotation
+    # Log général
     logger.add(
-        settings.LOG_FILE,
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message}",
+        log_path,
         level=settings.LOG_LEVEL,
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message}",
         rotation="10 MB",
         retention="30 days",
-        compression="gz",
-        serialize=False
+        compression="zip",
     )
     
-    # Logs d'erreurs séparés
-    error_log_path = log_file_path.parent / "errors.log"
+    # Log des erreurs séparé
+    error_log_path = log_path.parent / "errors.log"
     logger.add(
-        str(error_log_path),
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message}",
+        error_log_path,
         level="ERROR",
-        rotation="5 MB",
-        retention="60 days",
-        compression="gz",
-        serialize=False
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message}",
+        rotation="10 MB",
+        retention="90 days",
+        compression="zip",
     )
     
-    # Logs d'accès pour l'API (production)
-    if settings.is_production:
-        access_log_path = log_file_path.parent / "access.log"
-        logger.add(
-            str(access_log_path),
-            format="{time:YYYY-MM-DD HH:mm:ss} | {message}",
-            filter=lambda record: record["extra"].get("access_log", False),
-            rotation="100 MB",
-            retention="90 days",
-            compression="gz"
-        )
+    logger.info("📋 Système de logging configuré")
 
 
 def get_logger(name: str):
     """
-    Obtient un logger configuré pour un module spécifique
-    
-    Args:
-        name: Nom du module (généralement __name__)
-    
-    Returns:
-        Logger configuré
+    Retourne un logger configuré pour un module spécifique
     """
     return logger.bind(name=name)
 

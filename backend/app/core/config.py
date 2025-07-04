@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     ]
     
     # Configuration base de données
-    DATABASE_URL: str = "sqlite:///./agoraflux.db"
+    DATABASE_URL: str = "postgresql://postgres:admin@localhost:5432/agoraflux"
     DATABASE_ECHO: bool = True  # Active les logs SQL en développement
     
     # Configuration authentification
@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     # Configuration sécurité
     PASSWORD_MIN_LENGTH: int = 8
     BCRYPT_ROUNDS: int = 12
+    MAX_LOGIN_ATTEMPTS: int = 5
+    ACCOUNT_LOCK_DURATION: int = 900  # 15 minutes en secondes
     
     # Configuration données
     DATA_UPLOAD_PATH: str = "data/uploads"
@@ -96,6 +98,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Ignore les variables d'environnement supplémentaires
 
 
 # Instance globale des paramètres

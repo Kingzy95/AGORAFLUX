@@ -1,18 +1,22 @@
 """
-Module des modèles de données pour AgoraFlux
-Importe tous les modèles pour SQLAlchemy
+Modèles SQLAlchemy pour AgoraFlux
 """
 
-# Import de tous les modèles pour que SQLAlchemy les reconnaisse
-from app.models.user import User, UserRole, UserStatus
+from app.models.user import User, UserRole
 from app.models.project import Project, ProjectStatus, ProjectVisibility
-from app.models.dataset import Dataset, DatasetType, DatasetStatus, DataQuality
-from app.models.comment import Comment, CommentStatus, CommentType
+from app.models.dataset import Dataset, DatasetType, DatasetStatus
+from app.models.comment import Comment, CommentType, CommentStatus
 
-# Export de tous les modèles pour faciliter les imports
 __all__ = [
-    "User", "UserRole", "UserStatus",
-    "Project", "ProjectStatus", "ProjectVisibility", 
-    "Dataset", "DatasetType", "DatasetStatus", "DataQuality",
-    "Comment", "CommentStatus", "CommentType"
+    "User",
+    "UserRole",
+    "Project",
+    "ProjectStatus",
+    "ProjectVisibility",
+    "Dataset",
+    "DatasetType",
+    "DatasetStatus",
+    "Comment",
+    "CommentType",
+    "CommentStatus",
 ] 

@@ -8,62 +8,160 @@ from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 
-from app.models.user import UserRole, UserStatus
+from app.models.user import UserRole
 
 
 class UserBase(BaseModel):
-    """Schéma de base pour les utilisateurs"""
-    email: EmailStr
-    username: str = Field(..., min_length=3, max_length=50, pattern="^[a-zA-Z0-9_-]+$")
-    full_name: str = Field(..., min_length=2, max_length=255)
-    bio: Optional[str] = Field(None, max_length=1000)
-    location: Optional[str] = Field(None, max_length=255)
-    website: Optional[str] = Field(None, max_length=255)
-
-    @validator('username')
-    def username_alphanumeric(cls, v):
-        if not v.replace('_', '').replace('-', '').isalnum():
-            raise ValueError('Le nom d\'utilisateur ne peut contenir que des lettres, chiffres, _ et -')
-        return v
-
-    @validator('website')
-    def validate_website(cls, v):
-        if v and not (v.startswith('http://') or v.startswith('https://')):
-            raise ValueError('L\'URL du site web doit commencer par http:// ou https://')
-        return v
+    """
+    Schéma de base pour les utilisateurs
+    """
+    email: EmailStr = Field(..., description="Email de l'utilisateur")
+    first_name: str = Field(..., min_length=2, max_length=50, description="Prénom")
+    last_name: str = Field(..., min_length=2, max_length=50, description="Nom")
+    bio: Optional[str] = Field(None, max_length=500, description="Biographie")
 
 
 class UserCreate(UserBase):
-    """Schéma pour la création d'un utilisateur"""
-    password: str = Field(..., min_length=8, max_length=128)
+    """
+    Schéma pour la création d'un utilisateur
+    """
+    password: str = Field(..., min_length=6, description="Mot de passe")
+    role: UserRole = Field(UserRole.USER, description="Rôle de l'utilisateur")
     
-    @validator('password')
-    def password_strength(cls, v):
-        if len(v) < 8:
-            raise ValueError('Le mot de passe doit contenir au moins 8 caractères')
-        if not any(c.isupper() for c in v):
-            raise ValueError('Le mot de passe doit contenir au moins une majuscule')
-        if not any(c.islower() for c in v):
-            raise ValueError('Le mot de passe doit contenir au moins une minuscule')
-        if not any(c.isdigit() for c in v):
-            raise ValueError('Le mot de passe doit contenir au moins un chiffre')
-        return v
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "nouveau@agoraflux.fr",
+                "password": "MotDePasse123",
+                "first_name": "Jean",
+                "last_name": "Dupont",
+                "bio": "Citoyen engagé",
+                "role": "utilisateur"
+            }
+        }
 
 
 class UserUpdate(BaseModel):
-    """Schéma pour la mise à jour d'un utilisateur"""
-    email: Optional[EmailStr] = None
-    username: Optional[str] = Field(None, min_length=3, max_length=50)
-    full_name: Optional[str] = Field(None, min_length=2, max_length=255)
-    bio: Optional[str] = Field(None, max_length=1000)
-    location: Optional[str] = Field(None, max_length=255)
-    website: Optional[str] = Field(None, max_length=255)
+    """
+    Schéma pour la mise à jour d'un utilisateur
+    """
+    first_name: Optional[str] = Field(None, min_length=2, max_length=50)
+    last_name: Optional[str] = Field(None, min_length=2, max_length=50)
+    bio: Optional[str] = Field(None, max_length=500)
+    avatar_url: Optional[str] = Field(None, max_length=500)
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "first_name": "Jean",
+                "last_name": "Dupont",
+                "bio": "Citoyen engagé dans la démocratie participative"
+            }
+        }
 
-    @validator('username')
-    def username_alphanumeric(cls, v):
-        if v and not v.replace('_', '').replace('-', '').isalnum():
-            raise ValueError('Le nom d\'utilisateur ne peut contenir que des lettres, chiffres, _ et -')
-        return v
+
+class UserInDB(UserBase):
+    """
+    Schéma pour un utilisateur en base de données
+    """
+    id: int = Field(..., description="ID de l'utilisateur")
+    role: UserRole = Field(..., description="Rôle de l'utilisateur")
+    is_active: bool = Field(..., description="Statut d'activation")
+    is_verified: bool = Field(..., description="Statut de vérification")
+    is_locked: bool = Field(..., description="Statut de verrouillage")
+    created_at: datetime = Field(..., description="Date de création")
+    updated_at: Optional[datetime] = Field(None, description="Date de mise à jour")
+    last_login: Optional[datetime] = Field(None, description="Dernière connexion")
+    
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": 1,
+                "email": "admin@agoraflux.fr",
+                "first_name": "Admin",
+                "last_name": "AgoraFlux",
+                "bio": "Administrateur de la plateforme",
+                "role": "admin",
+                "is_active": True,
+                "is_verified": True,
+                "is_locked": False,
+                "created_at": "2024-01-01T00:00:00",
+                "last_login": "2024-01-01T12:00:00"
+            }
+        }
+
+
+class UserPublic(BaseModel):
+    """
+    Schéma pour l'affichage public d'un utilisateur
+    """
+    id: int = Field(..., description="ID de l'utilisateur")
+    first_name: str = Field(..., description="Prénom")
+    last_name: str = Field(..., description="Nom")
+    bio: Optional[str] = Field(None, description="Biographie")
+    avatar_url: Optional[str] = Field(None, description="URL de l'avatar")
+    role: UserRole = Field(..., description="Rôle de l'utilisateur")
+    created_at: datetime = Field(..., description="Date de création")
+    
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": 1,
+                "first_name": "Jean",
+                "last_name": "Dupont",
+                "bio": "Citoyen engagé",
+                "role": "utilisateur",
+                "created_at": "2024-01-01T00:00:00"
+            }
+        }
+
+
+class UserList(BaseModel):
+    """
+    Schéma pour la liste des utilisateurs
+    """
+    users: list[UserInDB] = Field(..., description="Liste des utilisateurs")
+    total: int = Field(..., description="Nombre total d'utilisateurs")
+    page: int = Field(..., description="Page actuelle")
+    per_page: int = Field(..., description="Nombre d'utilisateurs par page")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "users": [
+                    {
+                        "id": 1,
+                        "email": "admin@agoraflux.fr",
+                        "first_name": "Admin",
+                        "last_name": "AgoraFlux",
+                        "role": "admin",
+                        "is_active": True,
+                        "is_verified": True,
+                        "is_locked": False,
+                        "created_at": "2024-01-01T00:00:00"
+                    }
+                ],
+                "total": 1,
+                "page": 1,
+                "per_page": 10
+            }
+        }
+
+
+class UserRoleUpdate(BaseModel):
+    """
+    Schéma pour la mise à jour du rôle d'un utilisateur
+    """
+    role: UserRole = Field(..., description="Nouveau rôle")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "role": "moderateur"
+            }
+        }
 
 
 class UserPasswordChange(BaseModel):
@@ -77,39 +175,6 @@ class UserPasswordChange(BaseModel):
         if 'new_password' in values and v != values['new_password']:
             raise ValueError('Les mots de passe ne correspondent pas')
         return v
-
-
-class UserInDB(UserBase):
-    """Schéma pour les utilisateurs en base de données"""
-    id: int
-    role: UserRole
-    status: UserStatus
-    is_active: bool
-    is_verified: bool
-    created_at: datetime
-    updated_at: Optional[datetime]
-    last_login: Optional[datetime]
-    failed_login_attempts: int
-    locked_until: Optional[datetime]
-
-    class Config:
-        from_attributes = True
-
-
-class UserPublic(BaseModel):
-    """Schéma public pour les utilisateurs (sans informations sensibles)"""
-    id: int
-    username: str
-    full_name: str
-    bio: Optional[str]
-    location: Optional[str]
-    website: Optional[str]
-    role: UserRole
-    is_active: bool
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class UserAdmin(UserInDB):
@@ -131,15 +196,6 @@ class UserStats(BaseModel):
 class UserWithStats(UserPublic):
     """Utilisateur avec ses statistiques"""
     stats: UserStats
-
-
-class UserList(BaseModel):
-    """Liste paginée d'utilisateurs"""
-    users: List[UserPublic]
-    total: int
-    page: int
-    per_page: int
-    pages: int
 
 
 class UserLogin(BaseModel):

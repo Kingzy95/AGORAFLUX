@@ -1,106 +1,86 @@
 """
 Modèle User pour AgoraFlux
-Gestion des utilisateurs avec rôles et authentification
 """
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum, Text
-from sqlalchemy.sql import func
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Enum
 from sqlalchemy.orm import relationship
-import enum
 from datetime import datetime
+import enum
 
 from app.core.database import Base
 
 
-class UserRole(str, enum.Enum):
+class UserRole(enum.Enum):
     """
-    Énumération des rôles utilisateur selon le cahier des charges
+    Énumération des rôles utilisateur
     """
     ADMIN = "admin"
-    MODERATOR = "moderator"
-    USER = "user"
-
-
-class UserStatus(str, enum.Enum):
-    """
-    Statut de l'utilisateur
-    """
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    SUSPENDED = "suspended"
-    PENDING = "pending"
+    MODERATOR = "moderateur"
+    USER = "utilisateur"
 
 
 class User(Base):
     """
-    Modèle utilisateur pour la plateforme AgoraFlux
-    Support des rôles et de la collaboration citoyenne
+    Modèle utilisateur avec authentification et rôles
     """
     __tablename__ = "users"
-
+    
+    # Identification
     id = Column(Integer, primary_key=True, index=True)
-    
-    # Informations de base
     email = Column(String(255), unique=True, index=True, nullable=False)
-    username = Column(String(50), unique=True, index=True, nullable=False)
-    full_name = Column(String(255), nullable=False)
+    password_hash = Column(String(255), nullable=False)
     
-    # Authentification
-    hashed_password = Column(String(255), nullable=False)
-    is_active = Column(Boolean, default=True)
-    is_verified = Column(Boolean, default=False)
-    
-    # Rôles et permissions
-    role = Column(Enum(UserRole), default=UserRole.USER, nullable=False)
-    status = Column(Enum(UserStatus), default=UserStatus.ACTIVE, nullable=False)
-    
-    # Informations complémentaires
+    # Informations personnelles
+    first_name = Column(String(100), nullable=False)
+    last_name = Column(String(100), nullable=False)
     bio = Column(Text, nullable=True)
-    location = Column(String(255), nullable=True)
-    website = Column(String(255), nullable=True)
+    avatar_url = Column(String(500), nullable=True)
     
-    # Métadonnées temporelles
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    last_login = Column(DateTime(timezone=True), nullable=True)
+    # Rôle et permissions
+    role = Column(Enum(UserRole), default=UserRole.USER, nullable=False)
     
-    # Paramètres de sécurité
-    failed_login_attempts = Column(Integer, default=0)
-    locked_until = Column(DateTime(timezone=True), nullable=True)
-    password_changed_at = Column(DateTime(timezone=True), default=func.now())
+    # Statuts
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_verified = Column(Boolean, default=False, nullable=False)
+    is_locked = Column(Boolean, default=False, nullable=False)
     
-    # Relations avec d'autres modèles
+    # Sécurité
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
+    last_failed_login = Column(DateTime, nullable=True)
+    password_changed_at = Column(DateTime, nullable=True)
+    verified_at = Column(DateTime, nullable=True)
+    locked_at = Column(DateTime, nullable=True)
+    deactivated_at = Column(DateTime, nullable=True)
+    
+    # Relations
     projects = relationship("Project", back_populates="owner")
-    comments = relationship("Comment", back_populates="author", foreign_keys="Comment.author_id")
+    comments = relationship("Comment", back_populates="author")
     datasets = relationship("Dataset", back_populates="uploaded_by")
-
+    
     def __repr__(self):
-        return f"<User(id={self.id}, username='{self.username}', role='{self.role}')>"
+        return f"<User(id={self.id}, email={self.email}, role={self.role.value})>"
     
     @property
-    def is_admin(self) -> bool:
+    def full_name(self):
+        """Nom complet de l'utilisateur"""
+        return f"{self.first_name} {self.last_name}"
+    
+    @property
+    def is_admin(self):
         """Vérifie si l'utilisateur est administrateur"""
         return self.role == UserRole.ADMIN
     
     @property
-    def is_moderator(self) -> bool:
+    def is_moderator(self):
         """Vérifie si l'utilisateur est modérateur"""
         return self.role == UserRole.MODERATOR
     
     @property
-    def can_moderate(self) -> bool:
+    def can_moderate(self):
         """Vérifie si l'utilisateur peut modérer"""
-        return self.role in [UserRole.ADMIN, UserRole.MODERATOR]
-    
-    @property
-    def is_locked(self) -> bool:
-        """Vérifie si le compte est verrouillé"""
-        if not self.locked_until:
-            return False
-        return datetime.utcnow() < self.locked_until
-    
-    def update_last_login(self):
-        """Met à jour la dernière connexion"""
-        self.last_login = func.now()
-        self.failed_login_attempts = 0
-        self.locked_until = None 
+        return self.role in [UserRole.ADMIN, UserRole.MODERATOR] 

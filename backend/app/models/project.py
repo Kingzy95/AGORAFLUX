@@ -6,14 +6,15 @@ Gestion des projets de collaboration citoyenne
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Enum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+from datetime import datetime
 import enum
 
 from app.core.database import Base
 
 
-class ProjectStatus(str, enum.Enum):
+class ProjectStatus(enum.Enum):
     """
-    Statut des projets de collaboration
+    Statut des projets
     """
     DRAFT = "draft"
     ACTIVE = "active"
@@ -22,7 +23,7 @@ class ProjectStatus(str, enum.Enum):
     SUSPENDED = "suspended"
 
 
-class ProjectVisibility(str, enum.Enum):
+class ProjectVisibility(enum.Enum):
     """
     Visibilité des projets
     """
@@ -57,6 +58,7 @@ class Project(Base):
     tags = Column(String(500), nullable=True)  # Tags séparés par virgules
     objectives = Column(Text, nullable=True)
     methodology = Column(Text, nullable=True)
+    expected_outcomes = Column(Text, nullable=True)
     
     # Paramètres de collaboration
     allow_comments = Column(Boolean, default=True)
@@ -64,13 +66,18 @@ class Project(Base):
     moderation_enabled = Column(Boolean, default=False)
     
     # Métadonnées temporelles
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    published_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    published_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    archived_at = Column(DateTime, nullable=True)
     
     # Statistiques
     view_count = Column(Integer, default=0)
     contributor_count = Column(Integer, default=0)
+    likes_count = Column(Integer, default=0)
+    comments_count = Column(Integer, default=0)
+    datasets_count = Column(Integer, default=0)
     
     # Relations avec d'autres modèles
     datasets = relationship("Dataset", back_populates="project", cascade="all, delete-orphan")
@@ -78,12 +85,27 @@ class Project(Base):
     # visualizations = relationship("Visualization", back_populates="project")
 
     def __repr__(self):
-        return f"<Project(id={self.id}, title='{self.title}', status='{self.status}')>"
+        return f"<Project(id={self.id}, title='{self.title}', status='{self.status.value}')>"
     
     @property
     def is_published(self) -> bool:
         """Vérifie si le projet est publié"""
         return self.status == ProjectStatus.ACTIVE and self.published_at is not None
+    
+    @property
+    def is_public(self):
+        """Vérifie si le projet est public"""
+        return self.visibility == ProjectVisibility.PUBLIC
+    
+    @property
+    def is_active(self):
+        """Vérifie si le projet est actif"""
+        return self.status == ProjectStatus.ACTIVE
+    
+    @property
+    def is_completed(self):
+        """Vérifie si le projet est terminé"""
+        return self.status == ProjectStatus.COMPLETED
     
     @property
     def tag_list(self) -> list:
@@ -108,4 +130,8 @@ class Project(Base):
     
     def increment_view(self):
         """Incrémente le compteur de vues"""
-        self.view_count += 1 
+        self.view_count += 1
+    
+    def increment_views(self):
+        """Incrémente le compteur de vues"""
+        self.views_count += 1 
