@@ -1,6 +1,8 @@
 # AgoraFlux Frontend
 
-Interface utilisateur moderne et responsive pour la plateforme de simulation et collaboration citoyenne AgoraFlux.
+## Vue d'ensemble
+
+AgoraFlux est une plateforme de simulation et collaboration citoyenne qui permet aux citoyens de participer activement aux décisions municipales. Cette application React offre une interface moderne et intuitive pour visualiser les données publiques, participer aux discussions et suivre l'évolution des projets.
 
 ## 🚀 Technologies Utilisées
 

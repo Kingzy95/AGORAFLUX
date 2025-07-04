@@ -12,10 +12,10 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Projects from './pages/Projects';
+import Dashboard from './pages/Dashboard';
 
 // Placeholder components pour les pages manquantes
 const Register = () => <div>Page d'inscription en cours de développement...</div>;
-const Dashboard = () => <div>Tableau de bord en cours de développement...</div>;
 const ProjectDetail = () => <div>Détail du projet en cours de développement...</div>;
 const NewProject = () => <div>Nouveau projet en cours de développement...</div>;
 const Profile = () => <div>Profil en cours de développement...</div>;
