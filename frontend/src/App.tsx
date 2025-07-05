@@ -13,6 +13,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Projects from './pages/Projects';
 import CollaborativeDashboard from './pages/CollaborativeDashboard';
+import ExportCenter from './pages/ExportCenter';
 
 // Placeholder components pour les pages manquantes
 const Register = () => <div>Page d'inscription en cours de développement...</div>;
@@ -139,6 +140,14 @@ function App() {
                 <Route
                   path="/collaborative-dashboard"
                   element={<Navigate to="/dashboard" replace />}
+                />
+                <Route
+                  path="/export-center"
+                  element={
+                    <ProtectedRoute>
+                      <ExportCenter />
+                    </ProtectedRoute>
+                  }
                 />
                 <Route
                   path="/projects/new"

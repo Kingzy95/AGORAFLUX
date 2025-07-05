@@ -44,10 +44,13 @@ import {
   Settings as SettingsIcon,
   Public as PublicIcon,
   Lock as PrivateIcon,
-  Group as GroupIcon
+  Group as GroupIcon,
+  MoreVert as MoreIcon
 } from '@mui/icons-material';
 import { DataExportOptions } from '../../types/visualization';
 import { useAuth } from '../../context/AuthContext';
+import { exportService } from '../../utils/exportUtils';
+import { AdvancedExportDialog } from '../export';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -80,6 +83,7 @@ const ShareExportPanel: React.FC<ShareExportPanelProps> = ({
   const { user } = useAuth();
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [exportMenuAnchor, setExportMenuAnchor] = useState<HTMLElement | null>(null);
+  const [advancedExportOpen, setAdvancedExportOpen] = useState(false);
   const [shareData, setShareData] = useState<ShareData>({
     type: 'link',
     visibility: 'public',
@@ -121,153 +125,51 @@ const ShareExportPanel: React.FC<ShareExportPanelProps> = ({
     window.open(`mailto:?subject=${subject}&body=${body}`);
   };
 
-  const handleExportImage = async (format: 'png' | 'jpg') => {
-    if (!chartElement) return;
+  // Export rapide avec le nouveau service
+  const handleQuickExport = async (format: 'png' | 'jpg' | 'pdf' | 'csv' | 'json') => {
+    if (!chartElement && !chartData) return;
     
     setExportLoading(true);
+    setExportMenuAnchor(null);
+    
     try {
-      const canvas = await html2canvas(chartElement, {
-        backgroundColor: '#ffffff',
+      const options = {
+        format,
         scale: 2,
-        useCORS: true
-      });
-      
-      const link = document.createElement('a');
-      link.download = `${chartTitle}_${new Date().toISOString().split('T')[0]}.${format}`;
-      link.href = canvas.toDataURL(`image/${format}`);
-      link.click();
-      
-      setSnackbar({
-        open: true,
-        message: `Image ${format.toUpperCase()} exportée avec succès !`,
-        severity: 'success'
-      });
+        quality: 0.9,
+        includeMetadata: true,
+        includeWatermark: false,
+        backgroundColor: '#ffffff',
+        timestamp: true,
+        author: user?.first_name + ' ' + user?.last_name || 'AgoraFlux'
+      };
+
+      let result;
+      if (['png', 'jpg', 'pdf'].includes(format) && chartElement) {
+        if (format === 'pdf') {
+          result = await exportService.exportPDF(chartElement, chartTitle, options);
+        } else {
+          result = await exportService.exportImage(chartElement, chartTitle, options);
+        }
+      } else if (['csv', 'json'].includes(format) && chartData) {
+        result = await exportService.exportData(chartData, chartTitle, options);
+      }
+
+      if (result?.success) {
+        setSnackbar({
+          open: true,
+          message: `Export ${format.toUpperCase()} réussi !`,
+          severity: 'success'
+        });
+      }
     } catch (error) {
       setSnackbar({
         open: true,
-        message: 'Erreur lors de l\'export de l\'image',
+        message: 'Erreur lors de l\'export',
         severity: 'error'
       });
     } finally {
       setExportLoading(false);
-      setExportMenuAnchor(null);
-    }
-  };
-
-  const handleExportPDF = async () => {
-    if (!chartElement) return;
-    
-    setExportLoading(true);
-    try {
-      const canvas = await html2canvas(chartElement, {
-        backgroundColor: '#ffffff',
-        scale: 2,
-        useCORS: true
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-      
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgAspectRatio = canvas.width / canvas.height;
-      const pdfAspectRatio = pdfWidth / pdfHeight;
-      
-      let imgWidth, imgHeight;
-      if (imgAspectRatio > pdfAspectRatio) {
-        imgWidth = pdfWidth - 20;
-        imgHeight = imgWidth / imgAspectRatio;
-      } else {
-        imgHeight = pdfHeight - 20;
-        imgWidth = imgHeight * imgAspectRatio;
-      }
-      
-      const x = (pdfWidth - imgWidth) / 2;
-      const y = (pdfHeight - imgHeight) / 2;
-      
-      // Ajouter le titre
-      pdf.setFontSize(16);
-      pdf.text(chartTitle, pdfWidth / 2, 15, { align: 'center' });
-      
-      // Ajouter l'image
-      pdf.addImage(imgData, 'PNG', x, y + 10, imgWidth, imgHeight - 10);
-      
-      // Ajouter les métadonnées
-      pdf.setFontSize(10);
-      pdf.text(`Généré par AgoraFlux le ${new Date().toLocaleDateString('fr-FR')}`, 10, pdfHeight - 10);
-      pdf.text(shareUrl, pdfWidth - 10, pdfHeight - 10, { align: 'right' });
-      
-      pdf.save(`${chartTitle}_${new Date().toISOString().split('T')[0]}.pdf`);
-      
-      setSnackbar({
-        open: true,
-        message: 'PDF exporté avec succès !',
-        severity: 'success'
-      });
-    } catch (error) {
-      setSnackbar({
-        open: true,
-        message: 'Erreur lors de l\'export PDF',
-        severity: 'error'
-      });
-    } finally {
-      setExportLoading(false);
-      setExportMenuAnchor(null);
-    }
-  };
-
-  const handleExportData = (format: 'csv' | 'json') => {
-    try {
-      let content: string;
-      let mimeType: string;
-      let extension: string;
-
-      if (format === 'json') {
-        content = JSON.stringify(chartData, null, 2);
-        mimeType = 'application/json';
-        extension = 'json';
-      } else {
-        // CSV export
-        const headers = Object.keys(chartData[0] || {});
-        const csvRows = [
-          headers.join(','),
-          ...chartData.map((row: any) => 
-            headers.map(header => {
-              const value = row[header];
-              return typeof value === 'string' && value.includes(',') 
-                ? `"${value}"` 
-                : value;
-            }).join(',')
-          )
-        ];
-        content = csvRows.join('\n');
-        mimeType = 'text/csv;charset=utf-8;';
-        extension = 'csv';
-      }
-
-      const blob = new Blob([content], { type: mimeType });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `${chartTitle}_data_${new Date().toISOString().split('T')[0]}.${extension}`;
-      link.click();
-      
-      setSnackbar({
-        open: true,
-        message: `Données ${format.toUpperCase()} exportées avec succès !`,
-        severity: 'success'
-      });
-    } catch (error) {
-      setSnackbar({
-        open: true,
-        message: 'Erreur lors de l\'export des données',
-        severity: 'error'
-      });
-    } finally {
-      setExportMenuAnchor(null);
     }
   };
 
@@ -334,39 +236,49 @@ const ShareExportPanel: React.FC<ShareExportPanelProps> = ({
           size="small"
           disabled={exportLoading}
         >
-          Exporter
+          Export rapide
+        </Button>
+
+        <Button
+          startIcon={<SettingsIcon />}
+          onClick={() => setAdvancedExportOpen(true)}
+          variant="contained"
+          size="small"
+          color="primary"
+        >
+          Export avancé
         </Button>
       </Box>
 
-      {/* Menu d'export */}
+      {/* Menu d'export rapide */}
       <Menu
         anchorEl={exportMenuAnchor}
         open={Boolean(exportMenuAnchor)}
         onClose={() => setExportMenuAnchor(null)}
       >
-        <MenuItem onClick={() => handleExportImage('png')}>
+        <MenuItem onClick={() => handleQuickExport('png')}>
           <ListItemIcon><ImageIcon /></ListItemIcon>
           <ListItemText primary="Image PNG" secondary="Haute qualité" />
         </MenuItem>
         
-        <MenuItem onClick={() => handleExportImage('jpg')}>
+        <MenuItem onClick={() => handleQuickExport('jpg')}>
           <ListItemIcon><ImageIcon /></ListItemIcon>
           <ListItemText primary="Image JPEG" secondary="Taille réduite" />
         </MenuItem>
         
-        <MenuItem onClick={handleExportPDF}>
+        <MenuItem onClick={() => handleQuickExport('pdf')}>
           <ListItemIcon><PdfIcon /></ListItemIcon>
           <ListItemText primary="Document PDF" secondary="Avec métadonnées" />
         </MenuItem>
         
         <Divider />
         
-        <MenuItem onClick={() => handleExportData('csv')}>
+        <MenuItem onClick={() => handleQuickExport('csv')}>
           <ListItemIcon><CsvIcon /></ListItemIcon>
           <ListItemText primary="Données CSV" secondary="Format tableur" />
         </MenuItem>
         
-        <MenuItem onClick={() => handleExportData('json')}>
+        <MenuItem onClick={() => handleQuickExport('json')}>
           <ListItemIcon><JsonIcon /></ListItemIcon>
           <ListItemText primary="Données JSON" secondary="Format développeur" />
         </MenuItem>
@@ -379,7 +291,17 @@ const ShareExportPanel: React.FC<ShareExportPanelProps> = ({
         </MenuItem>
       </Menu>
 
-      {/* Dialog de partage */}
+      {/* Dialog d'export avancé */}
+      <AdvancedExportDialog
+        open={advancedExportOpen}
+        onClose={() => setAdvancedExportOpen(false)}
+        element={chartElement || null}
+        data={chartData}
+        title={chartTitle}
+        chartId={chartId}
+      />
+
+      {/* Dialog de partage (version simplifiée pour l'espace) */}
       <Dialog
         open={shareDialogOpen}
         onClose={() => setShareDialogOpen(false)}
@@ -469,21 +391,6 @@ const ShareExportPanel: React.FC<ShareExportPanelProps> = ({
                 </IconButton>
               </Tooltip>
             </Box>
-          </Box>
-
-          {/* Options avancées */}
-          <Box sx={{ mb: 3 }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={shareData.includeData}
-                  onChange={(e) => 
-                    setShareData(prev => ({ ...prev, includeData: e.target.checked }))
-                  }
-                />
-              }
-              label="Inclure les données brutes"
-            />
           </Box>
 
           {/* Message personnalisé */}

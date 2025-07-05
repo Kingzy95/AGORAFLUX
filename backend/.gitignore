@@ -166,5 +166,5 @@ Thumbs.db
 alembic/versions/*.py
 !alembic/versions/__init__.py 
 
-
-postgres/
+postgres
+postgres/*

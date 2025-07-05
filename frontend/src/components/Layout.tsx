@@ -29,7 +29,8 @@ import {
   Settings,
   ExitToApp,
   Home,
-  Add
+  Add,
+  Download as DownloadIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -83,6 +84,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       label: 'Tableau de bord', 
       path: '/dashboard', 
       icon: <Dashboard />,
+      public: false 
+    },
+    { 
+      label: 'Centre d\'Export', 
+      path: '/export-center', 
+      icon: <DownloadIcon />,
       public: false 
     },
     { 
