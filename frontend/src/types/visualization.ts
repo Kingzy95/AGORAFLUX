@@ -83,10 +83,11 @@ export interface DashboardWidget {
 
 export interface FilterOptions {
   dateRange?: {
-    start: string;
-    end: string;
+    start?: string;
+    end?: string;
   };
   categories?: string[];
+  category?: string;
   regions?: string[];
   status?: string[];
 }

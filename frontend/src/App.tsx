@@ -12,7 +12,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Projects from './pages/Projects';
-import Dashboard from './pages/Dashboard';
+import CollaborativeDashboard from './pages/CollaborativeDashboard';
 
 // Placeholder components pour les pages manquantes
 const Register = () => <div>Page d'inscription en cours de développement...</div>;
@@ -132,9 +132,13 @@ function App() {
                   path="/dashboard"
                   element={
                     <ProtectedRoute>
-                      <Dashboard />
+                      <CollaborativeDashboard />
                     </ProtectedRoute>
                   }
+                />
+                <Route
+                  path="/collaborative-dashboard"
+                  element={<Navigate to="/dashboard" replace />}
                 />
                 <Route
                   path="/projects/new"
