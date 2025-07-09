@@ -59,9 +59,13 @@ export interface ExportHistory {
   fileName: string;
   fileSize: number;
   timestamp: Date;
+  exportDate: Date; // Pour compatibilité
   downloadCount: number;
   expiresAt?: Date;
   downloadUrl?: string;
+  userId: string;
+  userName: string;
+  status: 'completed' | 'pending' | 'error'; // Statut de l'export
 }
 
 export interface ExportProgress {
@@ -105,6 +109,9 @@ export interface ShareableExport {
 
 export interface ExportStatistics {
   totalExports: number;
+  totalSize: number; // Taille totale en bytes
+  thisMonth: number; // Exports ce mois
+  favoriteFormat: string; // Format le plus utilisé
   exportsByFormat: Record<string, number>;
   exportsByChart: Record<string, number>;
   averageFileSize: number;

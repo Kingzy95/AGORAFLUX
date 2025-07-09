@@ -1,20 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
-import {
-  Container,
-  Paper,
-  TextField,
-  Button,
-  Typography,
-  Box,
-  Alert,
-  Link,
-  CircularProgress,
-  InputAdornment,
-  IconButton
-} from '@mui/material';
-import { Visibility, VisibilityOff, Email, Lock } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
+import {
+  Button,
+  Card, CardContent, CardDescription, CardHeader, CardTitle,
+  Input, Label, Alert, AlertDescription,
+  Separator
+} from '../components/ui';
+import { Eye, EyeOff, Mail, Lock, ArrowLeft, Loader2 } from 'lucide-react';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -60,148 +53,228 @@ const Login: React.FC = () => {
     setShowPassword(!showPassword);
   };
 
+  // Fonction pour remplir automatiquement les champs de test
+  const fillTestCredentials = (type: 'admin' | 'user') => {
+    if (type === 'admin') {
+      setFormData({
+        email: 'admin@agoraflux.fr',
+        password: 'admin123'
+      });
+    } else {
+      setFormData({
+        email: 'utilisateur@agoraflux.fr',
+        password: 'user123'
+      });
+    }
+    setError('');
+  };
+
   return (
-    <Container component="main" maxWidth="sm">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
-        <Paper
-          elevation={3}
-          sx={{
-            padding: 4,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            width: '100%',
-          }}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md space-y-6">
+        
+        {/* Bouton retour */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
         >
-          {/* Logo et titre */}
-          <Typography variant="h4" component="h1" gutterBottom>
-            🏛️ AgoraFlux
-          </Typography>
-          <Typography variant="h5" component="h2" gutterBottom>
-            Connexion
-          </Typography>
-          <Typography variant="body2" color="text.secondary" align="center" sx={{ mb: 3 }}>
-            Connectez-vous pour accéder à votre espace de collaboration citoyenne
-          </Typography>
+          <ArrowLeft className="h-4 w-4" />
+          Retour à l'accueil
+        </Button>
 
-          {/* Affichage des erreurs */}
-          {error && (
-            <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
-              {error}
-            </Alert>
-          )}
+        {/* Carte principale */}
+        <Card className="shadow-xl border-0">
+          <CardHeader className="text-center space-y-2 pb-4">
+            {/* Logo */}
+            <div className="flex justify-center mb-4">
+              <div className="flex items-center gap-3">
+                <svg className="h-10 w-10 text-primary" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                  <path clipRule="evenodd" d="M12.0799 24L4 19.2479L9.95537 8.75216L18.04 13.4961L18.0446 4H29.9554L29.96 13.4961L38.0446 8.75216L44 19.2479L35.92 24L44 28.7521L38.0446 39.2479L29.96 34.5039L29.9554 44H18.0446L18.04 34.5039L9.95537 39.2479L4 28.7521L12.0799 24Z" fill="currentColor" fillRule="evenodd"></path>
+                </svg>
+                <div>
+                  <h1 className="text-2xl font-bold">AgoraFlux</h1>
+                </div>
+              </div>
+            </div>
+            
+            <CardTitle className="text-2xl font-bold">Bon retour !</CardTitle>
+            <CardDescription className="text-base">
+              Connectez-vous pour accéder à votre espace de collaboration citoyenne
+            </CardDescription>
+          </CardHeader>
 
-          {/* Formulaire */}
-          <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="email"
-              label="Adresse email"
-              name="email"
-              autoComplete="email"
-              autoFocus
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Email color="action" />
-                  </InputAdornment>
-                ),
-              }}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              name="password"
-              label="Mot de passe"
-              type={showPassword ? 'text' : 'password'}
-              id="password"
-              autoComplete="current-password"
-              value={formData.password}
-              onChange={handleChange}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Lock color="action" />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      aria-label="toggle password visibility"
-                      onClick={handleTogglePasswordVisibility}
-                      edge="end"
-                    >
-                      {showPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              sx={{ mt: 3, mb: 2 }}
-              disabled={isLoading}
-              size="large"
-            >
-              {isLoading ? (
-                <>
-                  <CircularProgress size={20} sx={{ mr: 1 }} />
-                  Connexion...
-                </>
-              ) : (
-                'Se connecter'
-              )}
-            </Button>
-          </Box>
+          <CardContent className="space-y-4">
+            {/* Affichage des erreurs */}
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-          {/* Liens */}
-          <Box sx={{ textAlign: 'center', width: '100%' }}>
-            <Link
-              component={RouterLink}
-              to="/forgot-password"
-              variant="body2"
-              sx={{ display: 'block', mb: 1 }}
-            >
-              Mot de passe oublié ?
-            </Link>
-            <Typography variant="body2">
-              Pas encore de compte ?{' '}
-              <Link component={RouterLink} to="/register">
-                Créer un compte
-              </Link>
-            </Typography>
-          </Box>
+            {/* Formulaire */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-medium">
+                  Adresse email
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    placeholder="votre@email.com"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className="pl-10"
+                    autoFocus
+                  />
+                </div>
+              </div>
 
-          {/* Comptes de test */}
-          <Box sx={{ mt: 3, p: 2, backgroundColor: 'grey.50', borderRadius: 1, width: '100%' }}>
-            <Typography variant="subtitle2" gutterBottom>
-              Comptes de test disponibles :
-            </Typography>
-            <Typography variant="caption" display="block">
-              • Admin : admin@agoraflux.fr / admin123
-            </Typography>
-            <Typography variant="caption" display="block">
-              • Utilisateur : utilisateur@agoraflux.fr / user123
-            </Typography>
-          </Box>
-        </Paper>
-      </Box>
-    </Container>
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-sm font-medium">
+                  Mot de passe
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    required
+                    placeholder="Votre mot de passe"
+                    value={formData.password}
+                    onChange={handleChange}
+                    className="pl-10 pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1 h-8 w-8 px-0"
+                    onClick={handleTogglePasswordVisibility}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Connexion...
+                  </>
+                ) : (
+                  'Se connecter'
+                )}
+              </Button>
+            </form>
+
+            {/* Liens */}
+            <div className="text-center space-y-2">
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => navigate('/forgot-password')}
+                className="text-sm"
+              >
+                Mot de passe oublié ?
+              </Button>
+              
+              <div className="text-sm text-muted-foreground">
+                Pas encore de compte ?{' '}
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => navigate('/register')}
+                  className="p-0 h-auto font-medium text-primary hover:underline"
+                >
+                  Créer un compte
+                </Button>
+              </div>
+            </div>
+
+            {/* Séparateur */}
+            <div className="flex items-center gap-4 my-6">
+              <Separator className="flex-1" />
+              <span className="text-xs text-muted-foreground bg-background px-2">
+                COMPTES DE DÉMONSTRATION
+              </span>
+              <Separator className="flex-1" />
+            </div>
+
+            {/* Comptes de test */}
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground text-center mb-3">
+                Testez rapidement l'application :
+              </p>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fillTestCredentials('admin')}
+                  className="text-xs"
+                  disabled={isLoading}
+                >
+                  👨‍💼 Admin
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fillTestCredentials('user')}
+                  className="text-xs"
+                  disabled={isLoading}
+                >
+                  👤 Utilisateur
+                </Button>
+              </div>
+              
+              <div className="text-xs text-muted-foreground space-y-1 bg-muted/30 p-3 rounded-md">
+                <div className="flex justify-between">
+                  <span>Admin :</span>
+                  <span>admin@agoraflux.fr / admin123</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>User :</span>
+                  <span>utilisateur@agoraflux.fr / user123</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Footer */}
+        <p className="text-center text-xs text-muted-foreground">
+          En vous connectant, vous acceptez nos{' '}
+          <Button variant="link" size="sm" className="text-xs p-0 h-auto">
+            conditions d'utilisation
+          </Button>
+          {' '}et notre{' '}
+          <Button variant="link" size="sm" className="text-xs p-0 h-auto">
+            politique de confidentialité
+          </Button>
+        </p>
+      </div>
+    </div>
   );
 };
 

@@ -156,84 +156,11 @@ def init_database():
         db.add(dataset)
         db.commit()
         
-        print("💬 Création des commentaires de test...")
-        
-        # Créer des commentaires
-        comments_data = [
-            {
-                "content": "Excellente initiative ! Les données sur l'éducation sont particulièrement intéressantes. Avez-vous prévu d'analyser l'évolution sur 5 ans ?",
-                "comment_type": "comment",
-                "author_id": users[2].id,  # utilisateur
-                "project_id": project.id,
-                "like_count": 3,
-                "flag_count": 0,
-                "status": "approved"
-            },
-            {
-                "content": "Je suggère d'ajouter une comparaison avec d'autres métropoles françaises pour contextualiser les montants.",
-                "comment_type": "suggestion", 
-                "author_id": users[3].id,  # marie.dupont
-                "project_id": project.id,
-                "like_count": 5,
-                "flag_count": 0,
-                "status": "approved"
-            }
-        ]
-        
-        comments = []
-        for comment_data in comments_data:
-            comment = Comment(**comment_data)
-            db.add(comment)
-            comments.append(comment)
-        
-        db.commit()
-        
-        # Créer des réponses aux commentaires
-        responses_data = [
-            {
-                "content": "Bonne idée ! Je vais regarder les données historiques disponibles sur le portail Open Data.",
-                "comment_type": "comment",
-                "author_id": users[1].id,  # moderateur
-                "project_id": project.id,
-                "parent_id": comments[0].id,
-                "like_count": 1,
-                "flag_count": 0,
-                "status": "approved"
-            },
-            {
-                "content": "Excellente suggestion Marie ! Lyon et Marseille ont des budgets similaires, ça pourrait être très pertinent.",
-                "comment_type": "comment",
-                "author_id": users[0].id,  # admin
-                "project_id": project.id,
-                "parent_id": comments[1].id,
-                "like_count": 2,
-                "flag_count": 0,
-                "status": "approved"
-            }
-        ]
-        
-        for response_data in responses_data:
-            response = Comment(**response_data)
-            db.add(response)
-        
-        db.commit()
-        
-        print("✅ Base de données PostgreSQL initialisée avec succès !")
-        print("\n📊 Résumé des données créées :")
-        print(f"   👥 {len(users)} utilisateurs")
-        print(f"   📁 1 projet")
-        print(f"   📈 1 dataset")
-        print(f"   💬 {len(comments_data) + len(responses_data)} commentaires")
-        
-        print("\n🔐 Comptes de test créés :")
-        print("   👨‍💼 Admin: admin@agoraflux.fr / admin123")
-        print("   👨‍🔧 Modérateur: moderateur@agoraflux.fr / mod123")
-        print("   👨‍💻 Utilisateur: utilisateur@agoraflux.fr / user123")
-        print("   👩‍💻 Marie: marie.dupont@agoraflux.fr / user123")
-        
-        print("\n🌐 Accès :")
-        print("   🗄️  pgAdmin: http://localhost:8081 (admin@agoraflux.fr / admin)")
-        print("   🚀 API: http://localhost:8000")
+        print("✅ Base de données initialisée avec succès")
+        print(f"  - {len(users)} utilisateurs créés")
+        print(f"  - 1 projet créé")
+        print(f"  - 1 dataset créé")
+        print("  - Commentaires mocks supprimés")
         
     except Exception as e:
         print(f"❌ Erreur lors de l'initialisation : {e}")

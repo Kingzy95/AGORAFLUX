@@ -44,14 +44,7 @@ import AdvancedFilters from '../filters/AdvancedFilters';
 import AnnotationSystem from '../annotations/AnnotationSystem';
 import ShareExportPanel from '../sharing/ShareExportPanel';
 
-import {
-  mockBudgetData,
-  mockParticipationData,
-  mockParticipationStats,
-  mockSatisfactionData,
-  mockDemographicsData,
-  mockGeneralStats
-} from '../../utils/data/mockData';
+import { useVisualizationData, useDataPipeline } from '../../hooks';
 
 import { FilterOptions } from '../../types/visualization';
 import { useAuth } from '../../context/AuthContext';
@@ -133,37 +126,34 @@ const Dashboard: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
+  // Hooks pour les données
+  const { 
+    budgetData, 
+    participationData, 
+    participationStats,
+    generalStats,
+    demographicsData,
+    satisfactionData,
+    additionalStats,
+    isLoading: dataLoading, 
+    error: dataError,
+    refreshData,
+    useMockData,
+    setUseMockData
+  } = useVisualizationData();
+  
+  const { 
+    status: pipelineStatus, 
+    runPipeline,
+    isLoading: pipelineLoading 
+  } = useDataPipeline();
+  
   // États pour les interactions
   const [timeRange, setTimeRange] = useState('6months');
   const [refreshing, setRefreshing] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterOptions>({});
-  const [annotations, setAnnotations] = useState<any[]>([
-    {
-      id: '1',
-      userId: user?.id || 'demo',
-      userName: 'Marie Dupont',
-      userRole: 'utilisateur' as const,
-      x: 45,
-      y: 30,
-      content: 'Cette croissance du secteur éducation est remarquable ! Quelle en est la cause principale ?',
-      category: 'question' as const,
-      timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      isPrivate: false
-    },
-    {
-      id: '2',
-      userId: 'admin',
-      userName: 'Admin Municipal',
-      userRole: 'admin' as const,
-      x: 75,
-      y: 60,
-      content: 'Augmentation due aux nouveaux investissements dans les écoles primaires du programme 2024.',
-      category: 'insight' as const,
-      timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-      isPrivate: false
-    }
-  ]);
+  const [annotations, setAnnotations] = useState<any[]>([]); // Annotations supprimées
   
   const [snackbar, setSnackbar] = useState<{open: boolean; message: string; severity: 'success' | 'error' | 'info'}>({
     open: false,
@@ -187,13 +177,22 @@ const Dashboard: React.FC = () => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setRefreshing(false);
-    setSnackbar({
-      open: true,
-      message: 'Données mises à jour avec succès !',
-      severity: 'success'
-    });
+    try {
+      await refreshData();
+      setSnackbar({
+        open: true,
+        message: 'Données mises à jour avec succès !',
+        severity: 'success'
+      });
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Erreur lors de la mise à jour des données',
+        severity: 'error'
+      });
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleFiltersChange = (filters: FilterOptions) => {
@@ -307,6 +306,28 @@ const Dashboard: React.FC = () => {
         </Box>
       </Box>
 
+      {/* Contrôles du pipeline de données */}
+      {dataError && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          Erreur de chargement des données : {dataError}
+          <Box sx={{ mt: 1 }}>
+            <Chip 
+              label={useMockData ? "Mode données de test" : "Mode données réelles"}
+              color={useMockData ? "warning" : "success"}
+              size="small"
+              onClick={() => setUseMockData(!useMockData)}
+              clickable
+            />
+          </Box>
+        </Alert>
+      )}
+      
+      {(dataLoading || pipelineLoading) && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          {dataLoading ? "Chargement des données..." : "Exécution du pipeline en cours..."}
+        </Alert>
+      )}
+
       {/* Cartes de statistiques */}
       <Box sx={{ 
         display: 'grid', 
@@ -320,17 +341,17 @@ const Dashboard: React.FC = () => {
       }}>
         <StatCard
           title="Participants totaux"
-          value={mockGeneralStats.total}
-          change={mockGeneralStats.change}
-          changeType={mockGeneralStats.changeType}
+          value={generalStats.total}
+          change={generalStats.change}
+          changeType={generalStats.changeType}
           icon={<PeopleIcon fontSize="large" />}
-          period={mockGeneralStats.period}
+          period={generalStats.period}
         />
         
         <StatCard
           title="Projets actifs"
-          value={124}
-          change={15.2}
+          value={additionalStats.activeProjects}
+          change={additionalStats.projectsChange}
           changeType="increase"
           icon={<ProjectIcon fontSize="large" />}
           period="ce mois"
@@ -338,8 +359,8 @@ const Dashboard: React.FC = () => {
         
         <StatCard
           title="Commentaires"
-          value={2980}
-          change={8.7}
+          value={additionalStats.totalComments}
+          change={additionalStats.commentsChange}
           changeType="increase"
           icon={<CommentIcon fontSize="large" />}
           period="ce mois"
@@ -347,8 +368,8 @@ const Dashboard: React.FC = () => {
         
         <StatCard
           title="Arrondissements actifs"
-          value={20}
-          change={0}
+          value={additionalStats.activeDistricts}
+          change={additionalStats.districtsChange}
           changeType="stable"
           icon={<LocationIcon fontSize="large" />}
           period="ce mois"
@@ -366,13 +387,15 @@ const Dashboard: React.FC = () => {
           <Box ref={participationChartRef} sx={{ position: 'relative' }}>
             <AnnotationSystem
               chartId="participation-evolution"
-              annotations={annotations.filter(a => a.x < 60)}
+              annotations={annotations}
               onAddAnnotation={handleAddAnnotation}
               onUpdateAnnotation={handleUpdateAnnotation}
               onDeleteAnnotation={handleDeleteAnnotation}
             >
               <LineChart
-                data={mockParticipationStats}
+                data={participationStats}
+                loading={dataLoading}
+                error={dataError || undefined}
                 config={{
                   type: 'line',
                   title: 'Évolution de la participation citoyenne',
@@ -390,14 +413,14 @@ const Dashboard: React.FC = () => {
               <ShareExportPanel
                 chartId="participation-evolution"
                 chartTitle="Évolution de la participation citoyenne"
-                chartData={mockParticipationStats}
+                chartData={participationStats}
                 chartElement={participationChartRef.current}
               />
             </Box>
           </Box>
           
           <PieChart
-            data={mockDemographicsData}
+            data={demographicsData}
             config={{
               type: 'pie',
               title: 'Répartition par âge',
@@ -417,17 +440,19 @@ const Dashboard: React.FC = () => {
           <Box ref={budgetChartRef} sx={{ position: 'relative' }}>
             <AnnotationSystem
               chartId="budget-municipal"
-              annotations={annotations.filter(a => a.x >= 60)}
+              annotations={annotations}
               onAddAnnotation={handleAddAnnotation}
               onUpdateAnnotation={handleUpdateAnnotation}
               onDeleteAnnotation={handleDeleteAnnotation}
             >
               <BarChart
-                data={mockBudgetData.map(item => ({
+                data={budgetData.map((item: any) => ({
                   name: item.category,
                   value: item.amount,
                   color: item.color
                 }))}
+                loading={dataLoading}
+                error={dataError || undefined}
                 config={{
                   type: 'bar',
                   title: 'Budget municipal par secteur',
@@ -443,14 +468,14 @@ const Dashboard: React.FC = () => {
               <ShareExportPanel
                 chartId="budget-municipal"
                 chartTitle="Budget municipal par secteur"
-                chartData={mockBudgetData}
+                chartData={budgetData}
                 chartElement={budgetChartRef.current}
               />
             </Box>
           </Box>
           
           <PieChart
-            data={mockSatisfactionData}
+            data={satisfactionData}
             config={{
               type: 'pie',
               title: 'Satisfaction des participants',
@@ -464,7 +489,7 @@ const Dashboard: React.FC = () => {
         {/* Troisième ligne - Carte interactive */}
         <Box ref={mapRef} sx={{ position: 'relative' }}>
           <InteractiveMap
-            data={mockParticipationData}
+            data={participationData}
             center={[48.8566, 2.3522]}
             zoom={11}
             height={500}
@@ -481,7 +506,7 @@ const Dashboard: React.FC = () => {
             <ShareExportPanel
               chartId="carte-participation"
               chartTitle="Carte de participation par arrondissement"
-              chartData={mockParticipationData}
+              chartData={participationData}
               chartElement={mapRef.current}
             />
           </Box>

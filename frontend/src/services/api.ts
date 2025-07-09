@@ -171,8 +171,8 @@ class ApiService {
 
   async getDatasets(projectId?: number): Promise<Dataset[]> {
     const params = projectId ? { project_id: projectId } : {};
-    const response: AxiosResponse<Dataset[]> = await this.api.get('/datasets', { params });
-    return response.data;
+    const response: AxiosResponse<{ datasets: Dataset[]; total: number }> = await this.api.get('/datasets', { params });
+    return response.data.datasets;
   }
 
   async getDataset(id: number): Promise<Dataset> {
@@ -243,6 +243,218 @@ class ApiService {
   // Méthode pour vérifier si l'utilisateur est authentifié
   isAuthenticated(): boolean {
     return !!localStorage.getItem('access_token');
+  }
+
+  // === PIPELINE DE DONNÉES ===
+
+  async getDataSources(): Promise<{
+    sources: Array<{
+      key: string;
+      name: string;
+      url: string;
+      format: string;
+      description: string;
+      update_frequency: string;
+      last_updated: string | null;
+    }>;
+    total_sources: number;
+  }> {
+    const response = await this.api.get('/data/sources');
+    return response.data;
+  }
+
+  async getPipelineStatus(): Promise<{
+    is_running: boolean;
+    sources_configured: number;
+    last_run: any;
+  }> {
+    const response = await this.api.get('/data/status');
+    return response.data;
+  }
+
+  async runPipeline(useDebugData: boolean = true, sourceKeys?: string[]): Promise<any> {
+    const response = await this.api.post('/data/run', {
+      use_mock_data: useDebugData,
+      source_keys: sourceKeys
+    });
+    return response.data;
+  }
+
+  async runPipelineSync(useDebugData: boolean = true, sourceKeys?: string[]): Promise<any> {
+    const response = await this.api.post('/data/run-sync', {
+      use_mock_data: useDebugData,
+      source_keys: sourceKeys
+    });
+    return response.data;
+  }
+
+  async getLastPipelineRun(): Promise<any> {
+    const response = await this.api.get('/data/last-run');
+    return response.data;
+  }
+
+  async getProcessedDatasets(): Promise<{
+    datasets: Array<{
+      id: number;
+      name: string;
+      type: string;
+      status: string;
+      rows_count: number;
+      quality_score: number;
+      created_at: string;
+      project_id: number;
+    }>;
+    total: number;
+  }> {
+    const response = await this.api.get('/data/datasets');
+    return response.data;
+  }
+
+  async getDatasetDetails(datasetId: number): Promise<{
+    id: number;
+    name: string;
+    description: string;
+    type: string;
+    status: string;
+    rows_count: number;
+    columns_count: number;
+    quality_scores: {
+      completeness: number;
+      consistency: number;
+      validity: number;
+      overall: number;
+    };
+    sample_data: any[];
+    total_records: number;
+    created_at: string;
+    project_id: number;
+  }> {
+    const response = await this.api.get(`/data/datasets/${datasetId}`);
+    return response.data;
+  }
+
+  async getDatasetData(datasetId: number, limit: number = 100): Promise<{
+    dataset_id: number;
+    dataset_name: string;
+    data_type: string;
+    total_records: number;
+    data: any[];
+  }> {
+    const response = await this.api.get(`/data/datasets/${datasetId}/data`, {
+      params: { limit }
+    });
+    return response.data;
+  }
+
+  async getDebugData(dataType: 'budget' | 'participation'): Promise<{
+    data_type: string;
+    data: any[];
+    description: string;
+  }> {
+    const response = await this.api.get(`/data/mock-data/${dataType}`);
+    return response.data;
+  }
+
+  // === COLLABORATION ===
+
+  async getAnnotations(projectId?: number): Promise<any[]> {
+    const params = projectId ? { project_id: projectId } : {};
+    const response = await this.api.get('/collaboration/annotations', { params });
+    return response.data;
+  }
+
+  async createAnnotation(annotation: {
+    x: number;
+    y: number;
+    content: string;
+    category: string;
+    is_private?: boolean;
+  }): Promise<any> {
+    const response = await this.api.post('/collaboration/annotations', annotation);
+    return response.data;
+  }
+
+  async updateAnnotation(id: string, updates: {
+    content?: string;
+    category?: string;
+    is_private?: boolean;
+    is_resolved?: boolean;
+  }): Promise<any> {
+    const response = await this.api.put(`/collaboration/annotations/${id}`, updates);
+    return response.data;
+  }
+
+  async deleteAnnotation(id: string): Promise<void> {
+    await this.api.delete(`/collaboration/annotations/${id}`);
+  }
+
+  async getOnlineUsers(): Promise<any[]> {
+    const response = await this.api.get('/collaboration/users/online');
+    return response.data;
+  }
+
+  async getCollaborationStats(projectId?: number): Promise<any> {
+    const params = projectId ? { project_id: projectId } : {};
+    const response = await this.api.get('/collaboration/stats', { params });
+    return response.data;
+  }
+
+  async createReply(reply: {
+    content: string;
+    parent_id: string;
+    mentions?: string[];
+  }): Promise<any> {
+    const response = await this.api.post('/collaboration/replies', reply);
+    return response.data;
+  }
+
+  async addReaction(reaction: {
+    emoji: string;
+    target_id: string;
+    target_type: string;
+  }): Promise<any> {
+    const response = await this.api.post('/collaboration/reactions', reaction);
+    return response.data;
+  }
+
+  // === EXPORTS ===
+
+  async getExportHistory(params?: {
+    limit?: number;
+    offset?: number;
+    format_filter?: string;
+  }): Promise<any[]> {
+    const response = await this.api.get('/exports/history', { params });
+    return response.data;
+  }
+
+  async createExport(exportData: {
+    chart_id: string;
+    chart_title: string;
+    format: string;
+    file_name: string;
+    file_size: number;
+  }): Promise<any> {
+    const response = await this.api.post('/exports', exportData);
+    return response.data;
+  }
+
+  async deleteExport(id: string): Promise<void> {
+    await this.api.delete(`/exports/${id}`);
+  }
+
+  async getExportStatistics(): Promise<any> {
+    const response = await this.api.get('/exports/statistics');
+    return response.data;
+  }
+
+  async getExportNotifications(limit: number = 10): Promise<any[]> {
+    const response = await this.api.get('/exports/notifications', { params: { limit } });
+    return response.data;
+  }
+
+  async clearExportHistory(): Promise<void> {
+    await this.api.delete('/exports/history/clear');
   }
 }
 

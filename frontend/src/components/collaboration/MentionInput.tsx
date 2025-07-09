@@ -44,26 +44,26 @@ const MentionInput: React.FC<MentionInputProps> = ({
 
   // Filtrer les suggestions basées sur le texte après @
   const filteredSuggestions = availableUsers.filter(user =>
-    user.name.toLowerCase().includes(suggestionFilter.toLowerCase())
+    user.userName.toLowerCase().includes(suggestionFilter.toLowerCase())
   ).slice(0, 5); // Limiter à 5 suggestions
 
   // Détecter les mentions dans le texte
   const detectMentions = (text: string): Mention[] => {
     const mentionRegex = /@(\w+)/g;
-    const detectedMentions: Mention[] = [];
+    const mentions: Mention[] = [];
     let match;
 
     while ((match = mentionRegex.exec(text)) !== null) {
       const mentionText = match[1];
       const user = availableUsers.find(u => 
-        u.name.toLowerCase().replace(/\s+/g, '') === mentionText.toLowerCase()
+        u.userName.replace(/\s+/g, '').toLowerCase() === mentionText.toLowerCase()
       );
-      
+
       if (user) {
-        detectedMentions.push({
-          id: `mention-${user.id}-${match.index}`,
-          userId: user.id,
-          userName: user.name,
+        mentions.push({
+          id: `mention-${Date.now()}-${Math.random()}`,
+          userId: user.userId,
+          userName: user.userName,
           position: {
             start: match.index,
             end: match.index + match[0].length
@@ -72,7 +72,7 @@ const MentionInput: React.FC<MentionInputProps> = ({
       }
     }
 
-    return detectedMentions;
+    return mentions;
   };
 
   // Gérer les changements de texte
@@ -118,7 +118,7 @@ const MentionInput: React.FC<MentionInputProps> = ({
     
     if (lastAtIndex !== -1) {
       const beforeAt = value.substring(0, lastAtIndex);
-      const mentionText = `@${user.name.replace(/\s+/g, '')} `;
+      const mentionText = `@${user.userName.replace(/\s+/g, '')} `;
       const newValue = beforeAt + mentionText + textAfterCursor;
       const newCursorPosition = lastAtIndex + mentionText.length;
       
@@ -276,7 +276,7 @@ const MentionInput: React.FC<MentionInputProps> = ({
         >
           <List sx={{ py: 0 }}>
             {filteredSuggestions.map((user, index) => (
-              <ListItem key={user.id} disablePadding>
+              <ListItem key={user.userId} disablePadding>
                 <ListItemButton
                   selected={index === selectedSuggestionIndex}
                   onClick={() => handleSuggestionSelect(user)}
@@ -290,18 +290,18 @@ const MentionInput: React.FC<MentionInputProps> = ({
                 <ListItemAvatar>
                   <Avatar sx={{ width: 32, height: 32, fontSize: '14px' }}>
                     {user.avatar ? (
-                      <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%' }} />
+                      <img src={user.avatar} alt={user.userName} style={{ width: '100%', height: '100%' }} />
                     ) : (
-                      user.name.charAt(0).toUpperCase()
+                      user.userName.charAt(0).toUpperCase()
                     )}
                   </Avatar>
                 </ListItemAvatar>
                 <ListItemText
-                  primary={user.name}
+                  primary={user.userName}
                   secondary={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Chip
-                        label={user.role}
+                        label={user.userRole}
                         size="small"
                         variant="outlined"
                         sx={{ height: 16, fontSize: '0.65rem' }}

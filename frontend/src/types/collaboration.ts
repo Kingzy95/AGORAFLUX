@@ -92,9 +92,38 @@ export interface RealtimeEvent {
 
 // Utilitaires pour les mentions
 export interface MentionSuggestion {
-  id: string | number;
-  name: string;
-  role: 'admin' | 'moderateur' | 'utilisateur';
+  userId: string;
+  userName: string;
+  userRole: 'admin' | 'moderateur' | 'utilisateur';
   avatar?: string;
   isOnline?: boolean;
+  lastSeen?: Date;
+}
+
+// Statistiques de collaboration
+export interface CollaborationStats {
+  totalAnnotations: number;
+  activeDiscussions: number;
+  resolvedDiscussions: number;
+  totalParticipants: number;
+  totalReplies: number;
+  avgResponseTime: string;
+  participationRate: number;
+  topContributors: {
+    userName: string;
+    contributionCount: number;
+    userRole: string;
+  }[];
+}
+
+// Options de filtrage
+export interface FilterOptions {
+  category?: 'question' | 'insight' | 'concern' | 'suggestion';
+  status?: ('active' | 'resolved')[];
+  dateRange?: {
+    start?: string;
+    end?: string;
+  };
+  userId?: string;
+  userRole?: 'admin' | 'moderateur' | 'utilisateur';
 } 

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     
     # Configuration base de données
     DATABASE_URL: str = "postgresql://postgres:admin@localhost:5432/agoraflux"
-    DATABASE_ECHO: bool = True  # Active les logs SQL en développement
+    DATABASE_ECHO: bool = False  # Désactive les logs SQL verbeux
     
     # Configuration authentification
     SECRET_KEY: str = "votre-cle-secrete-super-forte-changez-moi"

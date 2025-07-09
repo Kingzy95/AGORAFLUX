@@ -163,47 +163,9 @@ def create_sample_dataset(db: SessionLocal, project: Project, user: User) -> Dat
 
 
 def create_sample_comments(db: SessionLocal, project: Project, users: list[User]):
-    """Crée des commentaires de démonstration"""
-    comments = [
-        Comment(
-            content="Excellente initiative ! Il était temps de rendre ces données plus accessibles aux citoyens.",
-            author_id=users[1].id,  # citoyen1
-            project_id=project.id,
-            like_count=5
-        ),
-                 Comment(
-             content="Serait-il possible d'ajouter une comparaison avec les budgets des années précédentes ?",
-             comment_type=CommentType.SUGGESTION,
-             author_id=users[2].id,  # marie_dupont
-             project_id=project.id,
-             like_count=3
-         ),
-         Comment(
-             content="Je peux contribuer à l'analyse des données éducation si vous voulez !",
-             comment_type=CommentType.SUGGESTION,
-             author_id=users[1].id,
-             project_id=project.id,
-             like_count=2
-         )
-    ]
-    
-    for comment in comments:
-        db.add(comment)
-    
-    db.commit()
-    
-    # Créer une réponse au premier commentaire
-    reply = Comment(
-        content="Merci ! N'hésitez pas à proposer des améliorations.",
-        author_id=users[0].id,  # admin (propriétaire du projet)
-        project_id=project.id,
-        parent_id=comments[0].id
-    )
-    
-    db.add(reply)
-    db.commit()
-    
-    logger.info(f"✅ {len(comments) + 1} commentaires créés")
+    """Création de commentaires de démonstration désactivée"""
+    logger.info("Création de commentaires de démonstration désactivée")
+    return
 
 
 def init_database():
@@ -233,8 +195,8 @@ def init_database():
         # Créer un dataset de démonstration
         dataset = create_sample_dataset(db, project, test_users[1])
         
-        # Créer des commentaires de démonstration
-        create_sample_comments(db, project, all_users)
+        # Créer des commentaires de démonstration (désactivé)
+        logger.info("Commentaires de démonstration désactivés")
         
         logger.info("✅ Base de données initialisée avec succès!")
         logger.info("📊 Données créées:")

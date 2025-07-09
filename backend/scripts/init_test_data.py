@@ -180,70 +180,10 @@ def create_test_datasets(db: Session, projects: dict, users: dict):
 
 def create_test_comments(db: Session, projects: dict, users: dict):
     """
-    Crée des commentaires de test
+    Création des commentaires de test désactivée
     """
-    logger.info("Création des commentaires de test...")
-    
-    # Commentaire principal
-    comment1 = Comment(
-        content="Excellente initiative ! Ces données sur le budget municipal sont très utiles pour comprendre les priorités de la ville. J'aimerais voir une analyse plus détaillée des dépenses en éducation.",
-        type=CommentType.COMMENT,
-        status=CommentStatus.ACTIVE,
-        author_id=users["user1"].id,
-        project_id=projects["project1"].id,
-        likes_count=5,
-        created_at=datetime.utcnow()
-    )
-    db.add(comment1)
-    
-    # Réponse au commentaire
-    comment2 = Comment(
-        content="Merci pour votre retour ! Nous travaillons justement sur un focus spécial éducation. Les données détaillées seront disponibles la semaine prochaine.",
-        type=CommentType.COMMENT,
-        status=CommentStatus.ACTIVE,
-        author_id=users["admin"].id,
-        project_id=projects["project1"].id,
-        parent_id=comment1.id,
-        thread_depth=1,
-        likes_count=2,
-        created_at=datetime.utcnow()
-    )
-    db.add(comment2)
-    
-    # Suggestion
-    comment3 = Comment(
-        content="Suggestion : il serait intéressant d'ajouter une comparaison avec les budgets des années précédentes pour voir l'évolution des priorités.",
-        type=CommentType.SUGGESTION,
-        status=CommentStatus.ACTIVE,
-        author_id=users["user2"].id,
-        project_id=projects["project1"].id,
-        likes_count=8,
-        is_highlighted=True,
-        created_at=datetime.utcnow()
-    )
-    db.add(comment3)
-    
-    # Question
-    comment4 = Comment(
-        content="Question : les données incluent-elles les investissements ou seulement les dépenses de fonctionnement ?",
-        type=CommentType.QUESTION,
-        status=CommentStatus.ACTIVE,
-        author_id=users["moderator"].id,
-        project_id=projects["project1"].id,
-        likes_count=3,
-        is_pinned=True,
-        created_at=datetime.utcnow()
-    )
-    db.add(comment4)
-    
-    db.commit()
-    
-    # Mettre à jour les compteurs
-    comment1.replies_count = 1
-    projects["project1"].comments_count = 4
-    db.commit()
-    
-    logger.info("4 commentaires créés avec succès")
+    logger.info("Création des commentaires de test désactivée")
+    return
 
 
 def init_test_data():
@@ -270,9 +210,12 @@ def init_test_data():
         users = create_test_users(db)
         projects = create_test_projects(db, users)
         datasets = create_test_datasets(db, projects, users)
-        create_test_comments(db, projects, users)
+        logger.info("Datasets créés avec succès")
         
-        logger.success("Données de test initialisées avec succès !")
+        # Commentaires désactivés
+        logger.info("Commentaires de test désactivés")
+        
+        logger.info("✅ Données de test créées avec succès")
         
         # Afficher les informations de connexion
         print("\n" + "="*60)

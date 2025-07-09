@@ -17,6 +17,7 @@ class ProjectBase(BaseModel):
     description: str = Field(..., min_length=20, max_length=5000)
     objectives: Optional[str] = Field(None, max_length=2000)
     methodology: Optional[str] = Field(None, max_length=2000)
+    expected_outcomes: Optional[str] = Field(None, max_length=2000)
     tags: Optional[str] = Field(None, max_length=500)
     visibility: ProjectVisibility = ProjectVisibility.PUBLIC
     allow_comments: bool = True
@@ -59,6 +60,7 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = Field(None, min_length=20, max_length=5000)
     objectives: Optional[str] = Field(None, max_length=2000)
     methodology: Optional[str] = Field(None, max_length=2000)
+    expected_outcomes: Optional[str] = Field(None, max_length=2000)
     tags: Optional[str] = Field(None, max_length=500)
     visibility: Optional[ProjectVisibility] = None
     allow_comments: Optional[bool] = None
@@ -104,6 +106,7 @@ class ProjectPublic(BaseModel):
     visibility: ProjectVisibility
     objectives: Optional[str]
     methodology: Optional[str]
+    expected_outcomes: Optional[str]
     tags: Optional[str]
     allow_comments: bool
     allow_contributions: bool

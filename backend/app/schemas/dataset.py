@@ -102,15 +102,15 @@ class DatasetPublic(BaseModel):
     name: str
     description: Optional[str]
     source_url: Optional[str]
-    dataset_type: DatasetType
+    dataset_type: DatasetType = Field(alias="type")
     status: DatasetStatus
     quality: DataQuality
     project_id: int
     uploaded_by: UserPublic
     
     # Métadonnées publiques
-    row_count: Optional[int]
-    column_count: Optional[int]
+    row_count: Optional[int] = Field(alias="rows_count")
+    column_count: Optional[int] = Field(alias="columns_count")
     file_size: Optional[int]
     
     # Scores de qualité
@@ -129,6 +129,8 @@ class DatasetPublic(BaseModel):
 
     class Config:
         from_attributes = True
+        populate_by_name = True
+        allow_population_by_field_name = True
 
     @property
     def overall_quality_score(self) -> float:
@@ -168,17 +170,20 @@ class DatasetSummary(BaseModel):
     """Résumé de dataset pour les listes"""
     id: int
     name: str
-    dataset_type: DatasetType
+    type: DatasetType = Field(alias="type")
     status: DatasetStatus
     quality: DataQuality
-    row_count: Optional[int]
+    rows_count: Optional[int]
+    columns_count: Optional[int]
     file_size: Optional[int]
-    overall_quality_score: float
+    overall_quality_score: float = Field(default=0.0)
     created_at: datetime
     uploaded_by: UserPublic
 
     class Config:
         from_attributes = True
+        populate_by_name = True
+        allow_population_by_field_name = True
 
 
 class DatasetStats(BaseModel):

@@ -3,8 +3,8 @@ export interface Project {
   title: string;
   slug: string;
   description: string;
-  status: 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
-  visibility: 'PUBLIC' | 'PRIVATE' | 'RESTRICTED';
+  status: 'draft' | 'active' | 'completed' | 'archived';
+  visibility: 'public' | 'private' | 'restricted';
   owner_id: number;
   owner?: {
     id: number;
@@ -99,18 +99,18 @@ export interface Comment {
 export interface CreateProjectRequest {
   title: string;
   description: string;
-  tags: string;
+  tags?: string;
   objectives?: string;
   methodology?: string;
   expected_outcomes?: string;
   allow_comments: boolean;
   allow_contributions: boolean;
   moderation_enabled: boolean;
-  visibility: 'PUBLIC' | 'PRIVATE' | 'RESTRICTED';
+  visibility: 'public' | 'private' | 'restricted';
 }
 
 export interface UpdateProjectRequest extends Partial<CreateProjectRequest> {
-  status?: 'DRAFT' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+  status?: 'draft' | 'active' | 'completed' | 'archived';
 }
 
 export interface CreateCommentRequest {

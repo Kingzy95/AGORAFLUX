@@ -1,63 +1,74 @@
 """
-Endpoints API pour le pipeline de données AgoraFlux
+API endpoints pour le pipeline de données AgoraFlux
+Gestion de l'acquisition, traitement, fusion et documentation des données publiques
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse
-from typing import Dict, List, Any, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 
-from ..data import pipeline
-from ..api.dependencies import require_admin
 from ..models.user import User
+from ..api.dependencies import require_admin
+from ..data.pipeline import pipeline
+from ..data.fusion import data_fusion
+from ..data.documentation import auto_doc_generator
 
-router = APIRouter(prefix="/data", tags=["Pipeline de données"])
+
+router = APIRouter(prefix="/data", tags=["Data Pipeline"])
 
 
 class PipelineRunRequest(BaseModel):
-    """Requête pour lancer le pipeline"""
-    use_mock_data: bool = False
+    use_mock_data: bool = True
     source_keys: Optional[List[str]] = None
 
 
-class PipelineStatusResponse(BaseModel):
-    """Réponse de statut du pipeline"""
-    is_running: bool
-    sources_configured: int
-    last_run: Optional[Dict[str, Any]]
+class FusionTestRequest(BaseModel):
+    use_mock_data: bool = True
+    fusion_type: str = "civic_engagement"
 
 
-@router.get("/sources", response_model=Dict[str, Any])
+@router.get("/status")
+async def get_pipeline_status():
+    """
+    Récupère le statut actuel du pipeline de données
+    """
+    try:
+        status = await pipeline.get_pipeline_status()
+        return status
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération du statut: {str(e)}"
+        )
+
+
+@router.get("/sources")
 async def list_data_sources():
     """
     Liste toutes les sources de données configurées
     """
-    sources = pipeline.source_manager.list_sources()
-    
-    return {
-        "sources": [
-            {
-                "key": key,
-                "name": source.name,
-                "url": source.url,
-                "format": source.format,
-                "description": source.description,
-                "update_frequency": source.update_frequency,
-                "last_updated": source.last_updated.isoformat() if source.last_updated else None
-            }
-            for key, source in sources.items()
-        ],
-        "total_sources": len(sources)
-    }
-
-
-@router.get("/status", response_model=PipelineStatusResponse)
-async def get_pipeline_status():
-    """
-    Retourne le statut actuel du pipeline de données
-    """
-    status = await pipeline.get_pipeline_status()
-    return PipelineStatusResponse(**status)
+    try:
+        sources = pipeline.source_manager.list_sources()
+        return {
+            "sources": [
+                {
+                    "key": key,
+                    "name": source.name,
+                    "url": source.url,
+                    "format": source.format,
+                    "description": source.description,
+                    "update_frequency": source.update_frequency
+                }
+                for key, source in sources.items()
+            ],
+            "total_sources": len(sources)
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération des sources: {str(e)}"
+        )
 
 
 @router.post("/run")
@@ -67,7 +78,7 @@ async def run_pipeline(
     admin_user: User = Depends(require_admin)
 ):
     """
-    Lance le pipeline de données (admin seulement)
+    Lance le pipeline de données complet (admin seulement)
     Execution en arrière-plan pour éviter timeout
     """
     if pipeline.is_running:
@@ -139,133 +150,162 @@ async def run_pipeline_sync(
         )
 
 
-@router.get("/last-run")
-async def get_last_run():
+@router.post("/test-fusion")
+async def test_fusion(
+    request: FusionTestRequest,
+    admin_user: User = Depends(require_admin)
+):
     """
-    Retourne les détails de la dernière exécution du pipeline
+    Test spécifique de la fusion de données (admin seulement)
     """
-    if not pipeline.last_run:
-        return JSONResponse(
-            status_code=404,
-            content={"message": "Aucune exécution précédente trouvée"}
+    try:
+        # Simuler des données traitées pour le test
+        from ..data.sources import get_mock_budget_data, get_mock_participation_data
+        from ..data.processor import data_processor
+        
+        # Préparer des données de test
+        mock_processed_data = {}
+        
+        # Données de participation
+        if request.use_mock_data:
+            participation_raw = {
+                'source': 'Mock Participation Data',
+                'data': get_mock_participation_data(),
+                'retrieved_at': '2024-01-01T00:00:00'
+            }
+            participation_processed = await data_processor.process_data(participation_raw, 'participation')
+            mock_processed_data['paris_participation'] = participation_processed
+            
+            # Données de budget
+            budget_raw = {
+                'source': 'Mock Budget Data', 
+                'data': get_mock_budget_data(),
+                'retrieved_at': '2024-01-01T00:00:00'
+            }
+            budget_processed = await data_processor.process_data(budget_raw, 'budget')
+            mock_processed_data['paris_budget'] = budget_processed
+        
+        # Test de fusion
+        fusion_result = await data_fusion.fuse_sources(
+            mock_processed_data,
+            fusion_type=request.fusion_type
         )
-    
-    return pipeline.last_run
-
-
-@router.get("/mock-data/{data_type}")
-async def get_mock_data(data_type: str):
-    """
-    Retourne des données de test pour un type donné
-    Utile pour tester les visualisations
-    """
-    from ..data.sources import get_mock_budget_data, get_mock_participation_data
-    
-    if data_type == "budget":
+        
         return {
-            "data_type": "budget",
-            "data": get_mock_budget_data(),
-            "description": "Données budgétaires de test pour Paris"
+            "message": "Test de fusion réussi",
+            "fusion_type": request.fusion_type,
+            "sources_used": list(mock_processed_data.keys()),
+            "records_merged": fusion_result.records_merged,
+            "fusion_quality": fusion_result.quality_metrics,
+            "sample_fused_data": fusion_result.fused_data[:3] if fusion_result.fused_data else [],
+            "source_mapping": fusion_result.source_mapping
         }
-    elif data_type == "participation":
-        return {
-            "data_type": "participation", 
-            "data": get_mock_participation_data(),
-            "description": "Données de participation citoyenne de test"
-        }
-    else:
+        
+    except Exception as e:
         raise HTTPException(
-            status_code=404,
-            detail=f"Type de données '{data_type}' non supporté. Types disponibles: budget, participation"
+            status_code=500,
+            detail=f"Erreur lors du test de fusion: {str(e)}"
         )
 
 
-@router.get("/datasets")
-async def list_processed_datasets():
+@router.post("/test-documentation")
+async def test_documentation(
+    request: PipelineRunRequest,
+    admin_user: User = Depends(require_admin)
+):
     """
-    Liste tous les datasets traités par le pipeline
+    Test spécifique de la génération de documentation (admin seulement)
     """
-    from ..core.database import get_db
-    from ..models.dataset import Dataset
-    from sqlalchemy.orm import Session
-    
-    db_gen = get_db()
-    db = next(db_gen)
-    
     try:
-        datasets = db.query(Dataset).all()
+        # Simuler des données traitées pour le test
+        from ..data.sources import get_mock_budget_data, get_mock_participation_data
+        from ..data.processor import data_processor
+        
+        # Préparer des données de test
+        mock_processed_data = {}
+        
+        if request.use_mock_data:
+            # Données de participation
+            participation_raw = {
+                'source': 'Mock Participation Data',
+                'data': get_mock_participation_data(),
+                'retrieved_at': '2024-01-01T00:00:00'
+            }
+            participation_processed = await data_processor.process_data(participation_raw, 'participation')
+            mock_processed_data['paris_participation'] = participation_processed
+            
+            # Données de budget  
+            budget_raw = {
+                'source': 'Mock Budget Data',
+                'data': get_mock_budget_data(), 
+                'retrieved_at': '2024-01-01T00:00:00'
+            }
+            budget_processed = await data_processor.process_data(budget_raw, 'budget')
+            mock_processed_data['paris_budget'] = budget_processed
+        
+        # Test de fusion pour documentation complète
+        fusion_result = None
+        try:
+            fusion_result = await data_fusion.fuse_sources(mock_processed_data, 'civic_engagement')
+        except:
+            pass  # Documentation fonctionne aussi sans fusion
+        
+        # Test de documentation
+        documentation = await auto_doc_generator.generate_comprehensive_documentation(
+            mock_processed_data,
+            fusion_result
+        )
         
         return {
-            "datasets": [
-                {
-                    "id": dataset.id,
-                    "name": dataset.name,
-                    "type": dataset.type.value,
-                    "status": dataset.status.value,
-                    "rows_count": dataset.rows_count,
-                    "quality_score": dataset.overall_quality_score,
-                    "created_at": dataset.created_at.isoformat() if dataset.created_at else None,
-                    "project_id": dataset.project_id
-                }
-                for dataset in datasets
-            ],
-            "total": len(datasets)
+            "message": "Test de documentation réussi",
+            "sources_documented": len(documentation['source_documentation']),
+            "fusion_documented": 'fusion_documentation' in documentation,
+            "total_fields": len(documentation['global_schema']['unified_schema']),
+            "documentation_summary": {
+                "generation_metadata": documentation['generation_metadata'],
+                "transformation_summary": documentation['transformation_summary'],
+                "sample_field_docs": dict(list(documentation['global_schema']['unified_schema'].items())[:3])
+            }
         }
-    finally:
-        db.close()
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors du test de documentation: {str(e)}"
+        )
 
 
-@router.get("/datasets/{dataset_id}")
-async def get_dataset_details(dataset_id: int):
+@router.get("/documentation/{source_name}")
+async def get_source_documentation(source_name: str):
     """
-    Retourne les détails d'un dataset spécifique
+    Récupère la documentation d'une source spécifique
     """
-    from ..core.database import get_db
-    from ..models.dataset import Dataset
-    from sqlalchemy.orm import Session
-    
-    db_gen = get_db()
-    db = next(db_gen)
-    
+    # TODO: Implémenter récupération depuis base de données
+    # Pour l'instant, retourne un exemple
+    return {
+        "message": f"Documentation pour {source_name}",
+        "note": "À implémenter: récupération depuis base de données"
+    }
+
+
+async def _run_full_pipeline(use_mock_data: bool):
+    """Fonction helper pour exécution pipeline complet en arrière-plan"""
     try:
-        dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
-        
-        if not dataset:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Dataset {dataset_id} non trouvé"
-            )
-        
-        # Retourne les données depuis processing_config
-        sample_data = []
-        total_records = 0
-        
-        if dataset.processing_config:
-            sample_data = dataset.processing_config.get('sample_data', [])
-            total_records = dataset.processing_config.get('total_records', 0)
-        
-        return {
-            "id": dataset.id,
-            "name": dataset.name,
-            "description": dataset.description,
-            "type": dataset.type.value,
-            "status": dataset.status.value,
-            "rows_count": dataset.rows_count,
-            "columns_count": dataset.columns_count,
-            "quality_scores": {
-                "completeness": dataset.completeness_score,
-                "consistency": dataset.consistency_score,
-                "validity": dataset.validity_score,
-                "overall": dataset.overall_quality_score
-            },
-            "sample_data": sample_data,
-            "total_records": total_records,
-            "created_at": dataset.created_at.isoformat() if dataset.created_at else None,
-            "project_id": dataset.project_id
-        }
-        
-    finally:
-        db.close()
+        result = await pipeline.run_full_pipeline(use_mock_data)
+        return result
+    except Exception as e:
+        print(f"Erreur pipeline complet: {e}")
+        return {"error": str(e)}
+
+
+async def _run_partial_pipeline(source_keys: List[str], use_mock_data: bool):
+    """Fonction helper pour exécution pipeline partiel en arrière-plan"""
+    try:
+        result = await pipeline.run_partial_pipeline(source_keys, use_mock_data)
+        return result
+    except Exception as e:
+        print(f"Erreur pipeline partiel: {e}")
+        return {"error": str(e)}
 
 
 @router.get("/datasets/{dataset_id}/data")
@@ -308,22 +348,52 @@ async def get_dataset_data(dataset_id: int, limit: int = 100):
         db.close()
 
 
-# Fonctions d'aide pour Background Tasks
-async def _run_full_pipeline(use_mock_data: bool):
-    """Execute le pipeline complet en arrière-plan"""
+@router.get("/datasets/{dataset_id}/documentation")
+async def get_dataset_documentation(dataset_id: int):
+    """
+    Récupère la documentation complète d'un dataset
+    """
+    from ..core.database import get_db
+    from ..models.dataset import Dataset
+    from sqlalchemy.orm import Session
+    
+    db_gen = get_db()
+    db = next(db_gen)
+    
     try:
-        await pipeline.run_full_pipeline(use_mock_data)
-    except Exception as e:
-        # Log l'erreur mais ne lève pas d'exception dans background task
-        from loguru import logger
-        logger.error(f"❌ Erreur pipeline background: {str(e)}")
-
-
-async def _run_partial_pipeline(source_keys: List[str], use_mock_data: bool):
-    """Execute le pipeline partiel en arrière-plan"""
-    try:
-        await pipeline.run_partial_pipeline(source_keys, use_mock_data)
-    except Exception as e:
-        # Log l'erreur mais ne lève pas d'exception dans background task
-        from loguru import logger
-        logger.error(f"❌ Erreur pipeline partiel background: {str(e)}") 
+        dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+        
+        if not dataset:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Dataset {dataset_id} non trouvé"
+            )
+        
+        # Extraire documentation depuis processing_config
+        documentation = {}
+        if dataset.processing_config:
+            documentation = dataset.processing_config.get('documentation', {})
+        
+        return {
+            "dataset_id": dataset_id,
+            "dataset_name": dataset.name,
+            "dataset_type": dataset.type.value if dataset.type else 'unknown',
+            "quality_scores": {
+                "completeness": dataset.completeness_score,
+                "consistency": dataset.consistency_score,
+                "validity": dataset.validity_score,
+                "overall": dataset.overall_quality_score
+            },
+            "metadata": {
+                "rows_count": dataset.rows_count,
+                "columns_count": dataset.columns_count,
+                "file_size_mb": dataset.file_size_mb,
+                "created_at": dataset.created_at.isoformat() if dataset.created_at else None,
+                "processed_at": dataset.processed_at.isoformat() if dataset.processed_at else None
+            },
+            "documentation": documentation,
+            "processing_log": dataset.processing_log
+        }
+        
+    finally:
+        db.close() 

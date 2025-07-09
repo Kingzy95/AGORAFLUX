@@ -11,6 +11,8 @@ from loguru import logger
 
 from .sources import data_source_manager, get_mock_budget_data, get_mock_participation_data
 from .processor import data_processor
+from .fusion import data_fusion
+from .documentation import auto_doc_generator
 from ..core.database import get_db
 from ..models.dataset import Dataset, DatasetType, DatasetStatus
 from ..models.project import Project
@@ -22,12 +24,14 @@ class DataPipeline:
     def __init__(self):
         self.source_manager = data_source_manager
         self.processor = data_processor
+        self.fusion_engine = data_fusion
+        self.doc_generator = auto_doc_generator
         self.last_run = None
         self.is_running = False
     
     async def run_full_pipeline(self, use_mock_data: bool = False) -> Dict[str, Any]:
         """
-        Execute le pipeline complet : acquisition → traitement → injection
+        Execute le pipeline complet : acquisition → traitement → fusion → documentation → injection
         """
         if self.is_running:
             return {"error": "Pipeline déjà en cours d'exécution"}
@@ -48,10 +52,16 @@ class DataPipeline:
             # Étape 2: Traitement des données
             processed_data = await self._process_data(raw_data)
             
-            # Étape 3: Injection en base de données
-            injection_results = await self._inject_data(processed_data)
+            # Étape 3: Fusion des données (overlay)
+            fusion_result = await self._fuse_data(processed_data)
             
-            # Étape 4: Rapport final
+            # Étape 4: Génération documentation automatique
+            documentation = await self._generate_documentation(processed_data, fusion_result)
+            
+            # Étape 5: Injection en base de données
+            injection_results = await self._inject_data(processed_data, fusion_result, documentation)
+            
+            # Étape 6: Rapport final
             duration = (datetime.now() - start_time).total_seconds()
             
             results = {
@@ -62,14 +72,19 @@ class DataPipeline:
                 "data_sources": len(raw_data),
                 "raw_records": sum(len(data.get('data', [])) for data in raw_data.values()),
                 "processed_records": sum(result.get('processed_rows', 0) for result in processed_data.values()),
+                "fused_records": fusion_result.records_merged if fusion_result else 0,
                 "injected_records": sum(result.get('records_inserted', 0) for result in injection_results.values()),
                 "quality_scores": {
                     source: result.get('quality_metrics', {}).get('overall_score', 0)
                     for source, result in processed_data.items()
                 },
+                "fusion_quality": fusion_result.quality_metrics if fusion_result else {},
+                "documentation_generated": documentation is not None,
                 "details": {
                     "acquisition": self._summarize_acquisition(raw_data),
                     "processing": self._summarize_processing(processed_data),
+                    "fusion": self._summarize_fusion(fusion_result),
+                    "documentation": self._summarize_documentation(documentation),
                     "injection": injection_results
                 }
             }
@@ -160,8 +175,51 @@ class DataPipeline:
         
         return processed_results
     
-    async def _inject_data(self, processed_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Injection des données traitées en base"""
+    async def _fuse_data(self, processed_data: Dict[str, Any]) -> Optional[Any]:
+        """Fusion des données selon les stratégies configurées"""
+        logger.info("🔗 Début fusion des données...")
+        
+        try:
+            # Vérifier s'il y a assez de sources pour fusion
+            valid_sources = {k: v for k, v in processed_data.items() 
+                           if 'data' in v and v['data'] and not 'error' in v}
+            
+            if len(valid_sources) < 2:
+                logger.warning("⚠️ Fusion ignorée: moins de 2 sources valides")
+                return None
+            
+            # Fusion géographique par défaut (engagement civique)
+            fusion_result = await self.fusion_engine.fuse_sources(
+                processed_data, 
+                fusion_type='civic_engagement'
+            )
+            
+            logger.info(f"✅ Fusion terminée: {fusion_result.records_merged} enregistrements fusionnés")
+            return fusion_result
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur fusion: {str(e)}")
+            return None
+    
+    async def _generate_documentation(self, processed_data: Dict[str, Any], fusion_result: Optional[Any] = None) -> Optional[Dict[str, Any]]:
+        """Génération automatique de documentation"""
+        logger.info("📖 Génération documentation automatique...")
+        
+        try:
+            documentation = await self.doc_generator.generate_comprehensive_documentation(
+                processed_data, 
+                fusion_result
+            )
+            
+            logger.info("✅ Documentation générée avec succès")
+            return documentation
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur génération documentation: {str(e)}")
+            return None
+
+    async def _inject_data(self, processed_data: Dict[str, Any], fusion_result: Optional[Any] = None, documentation: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Injection des données traitées, fusionnées et documentées en base"""
         logger.info("💾 Injection des données en base...")
         
         injection_results = {}
@@ -171,18 +229,28 @@ class DataPipeline:
         db = next(db_gen)
         
         try:
+            # Injection des sources individuelles
             for source_key, processed_source in processed_data.items():
                 if 'error' in processed_source:
                     logger.warning(f"⚠️ Ignore injection {source_key} avec erreur")
                     continue
                 
                 try:
-                    result = await self._inject_source_data(db, source_key, processed_source)
+                    result = await self._inject_source_data(db, source_key, processed_source, documentation)
                     injection_results[source_key] = result
                     
                 except Exception as e:
                     logger.error(f"❌ Erreur injection {source_key}: {str(e)}")
                     injection_results[source_key] = {"error": str(e)}
+            
+            # Injection des données fusionnées si disponibles
+            if fusion_result and fusion_result.fused_data:
+                try:
+                    fusion_injection = await self._inject_fusion_data(db, fusion_result, documentation)
+                    injection_results['fusion'] = fusion_injection
+                except Exception as e:
+                    logger.error(f"❌ Erreur injection fusion: {str(e)}")
+                    injection_results['fusion'] = {"error": str(e)}
             
             # Commit des changements
             db.commit()
@@ -196,8 +264,8 @@ class DataPipeline:
             db.close()
         
         return injection_results
-    
-    async def _inject_source_data(self, db: Session, source_key: str, processed_data: Dict[str, Any]) -> Dict[str, Any]:
+
+    async def _inject_source_data(self, db: Session, source_key: str, processed_data: Dict[str, Any], documentation: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Injection d'une source spécifique"""
         data_type = processed_data.get('data_type', 'unknown')
         records = processed_data.get('data', [])
@@ -250,7 +318,47 @@ class DataPipeline:
             "quality_score": quality.get('overall_score', 0),
             "message": f"Dataset {dataset.name} mis à jour avec {len(records)} enregistrements"
         }
-    
+
+    async def _inject_fusion_data(self, db: Session, fusion_result: Any, documentation: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Injection spécifique des données fusionnées"""
+        logger.info("💾 Injection données fusionnées...")
+        
+        # Créer un projet dédié pour les données fusionnées
+        fusion_project = self._get_or_create_project(db, "fusion", "civic_engagement_fused")
+        
+        # Créer dataset pour données fusionnées
+        fusion_dataset = self._get_or_create_dataset(db, "fusion", "civic_engagement_fused", fusion_project.id, {
+            'data': fusion_result.fused_data,
+            'quality_metrics': fusion_result.quality_metrics,
+            'metadata': fusion_result.fusion_metadata
+        })
+        
+        # Enrichir avec métadonnées de fusion
+        fusion_dataset.processing_config = {
+            "fusion_data": fusion_result.fused_data[:100],  # Limite
+            "fusion_metadata": fusion_result.fusion_metadata,
+            "fusion_quality": fusion_result.quality_metrics,
+            "source_mapping": fusion_result.source_mapping,
+            "records_merged": fusion_result.records_merged,
+            "conflicts_resolved": fusion_result.conflicts_resolved,
+            "documentation": documentation.get('fusion_documentation', {}) if documentation else {}
+        }
+        
+        # Statistiques de fusion
+        fusion_dataset.rows_count = fusion_result.records_merged
+        fusion_dataset.completeness_score = fusion_result.quality_metrics.get('data_completeness', 0)
+        fusion_dataset.overall_quality_score = fusion_result.quality_metrics.get('fusion_coverage', 0)
+        
+        db.add(fusion_dataset)
+        
+        return {
+            "records_inserted": fusion_result.records_merged,
+            "dataset_id": fusion_dataset.id,
+            "project_id": fusion_project.id,
+            "fusion_quality": fusion_result.quality_metrics,
+            "message": f"Données fusionnées injectées: {fusion_result.records_merged} enregistrements"
+        }
+
     def _get_or_create_project(self, db: Session, source_key: str, data_type: str) -> Project:
         """Crée ou récupère le projet pour cette source"""
         project_title = f"Données {data_type.title()} - {source_key}"
@@ -344,6 +452,33 @@ class DataPipeline:
                     "quality_level": quality.get('quality_level', 'unknown')
                 }
         return summary
+    
+    def _summarize_fusion(self, fusion_result: Optional[Any]) -> Dict[str, Any]:
+        """Résumé de l'étape de fusion"""
+        if not fusion_result:
+            return {"status": "skipped", "reason": "Insufficient sources or error"}
+        
+        return {
+            "status": "completed",
+            "records_merged": fusion_result.records_merged,
+            "fusion_strategy": fusion_result.fusion_metadata.get('fusion_strategy'),
+            "sources_involved": fusion_result.fusion_metadata.get('sources_used', []),
+            "quality_metrics": fusion_result.quality_metrics,
+            "conflicts_resolved": fusion_result.conflicts_resolved
+        }
+    
+    def _summarize_documentation(self, documentation: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Résumé de l'étape de documentation"""
+        if not documentation:
+            return {"status": "failed", "reason": "Documentation generation error"}
+        
+        return {
+            "status": "completed",
+            "sources_documented": len(documentation.get('source_documentation', {})),
+            "fusion_documented": 'fusion_documentation' in documentation,
+            "total_fields_documented": len(documentation.get('global_schema', {}).get('unified_schema', {})),
+            "transformations_documented": len(documentation.get('transformation_summary', {}).get('unique_transformations', []))
+        }
     
     async def get_pipeline_status(self) -> Dict[str, Any]:
         """Retourne le statut actuel du pipeline"""

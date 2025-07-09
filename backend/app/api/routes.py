@@ -42,10 +42,18 @@ async def api_status():
 # Import des routeurs des modules spécifiques
 from app.api.auth import router as auth_router
 from app.api.data import router as data_router
+from app.api.collaboration import router as collaboration_router
+from app.api.exports import router as exports_router
+from app.api.projects import router as projects_router
+from app.api.datasets import router as datasets_router
 
 # Inclusion des routeurs
 api_router.include_router(auth_router, prefix="/auth", tags=["authentication"])
+api_router.include_router(projects_router, tags=["projects"])
+api_router.include_router(datasets_router, tags=["datasets"])
 api_router.include_router(data_router, tags=["pipeline"])
+api_router.include_router(collaboration_router, tags=["collaboration"])
+api_router.include_router(exports_router, tags=["exports"])
 
 # TODO: Ajouter les autres routeurs
 # from app.api.users import users_router
