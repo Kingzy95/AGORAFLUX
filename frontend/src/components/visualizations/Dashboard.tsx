@@ -43,6 +43,7 @@ import InteractiveMap from '../maps/InteractiveMap';
 import AdvancedFilters from '../filters/AdvancedFilters';
 import AnnotationSystem from '../annotations/AnnotationSystem';
 import ShareExportPanel from '../sharing/ShareExportPanel';
+import PipelineControlPanel from '../pipeline/PipelineControlPanel';
 
 import { useVisualizationData, useDataPipeline } from '../../hooks';
 
@@ -144,8 +145,13 @@ const Dashboard: React.FC = () => {
   
   const { 
     status: pipelineStatus, 
+    sources: pipelineSources,
+    datasets: pipelineDatasets,
+    lastRun,
+    isLoading: pipelineLoading,
+    error: pipelineError,
     runPipeline,
-    isLoading: pipelineLoading 
+    refreshData: refreshPipelineData
   } = useDataPipeline();
   
   // États pour les interactions
@@ -192,6 +198,27 @@ const Dashboard: React.FC = () => {
       });
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleRunPipeline = async (useDebugData: boolean) => {
+    try {
+      await runPipeline(useDebugData);
+      setSnackbar({
+        open: true,
+        message: 'Pipeline lancé avec succès ! Les données vont être mises à jour.',
+        severity: 'success'
+      });
+      // Actualiser les données après un délai
+      setTimeout(() => {
+        refreshData();
+      }, 2000);
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Erreur lors du lancement du pipeline',
+        severity: 'error'
+      });
     }
   };
 
@@ -306,6 +333,18 @@ const Dashboard: React.FC = () => {
         </Box>
       </Box>
 
+      {/* Pipeline Control Panel */}
+      <PipelineControlPanel
+        status={pipelineStatus}
+        sources={pipelineSources}
+        datasets={pipelineDatasets}
+        lastRun={lastRun}
+        isLoading={pipelineLoading}
+        error={pipelineError}
+        onRunPipeline={handleRunPipeline}
+        onRefresh={refreshPipelineData}
+      />
+
       {/* Contrôles du pipeline de données */}
       {dataError && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -331,11 +370,7 @@ const Dashboard: React.FC = () => {
       {/* Cartes de statistiques */}
       <Box sx={{ 
         display: 'grid', 
-        gridTemplateColumns: { 
-          xs: '1fr', 
-          sm: 'repeat(2, 1fr)', 
-          md: 'repeat(4, 1fr)' 
-        }, 
+        gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: '1fr 1fr 1fr 1fr' }, 
         gap: 3, 
         mb: 4 
       }}>

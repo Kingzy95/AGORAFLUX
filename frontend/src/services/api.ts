@@ -297,14 +297,16 @@ class ApiService {
     datasets: Array<{
       id: number;
       name: string;
-      type: string;
+      data_type: string;
       status: string;
-      rows_count: number;
+      total_records: number;
       quality_score: number;
       created_at: string;
-      project_id: number;
+      processed_at: string | null;
+      sample_data?: any[];
     }>;
     total: number;
+    retrieved_at: string;
   }> {
     const response = await this.api.get('/data/datasets');
     return response.data;

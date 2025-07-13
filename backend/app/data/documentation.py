@@ -193,6 +193,10 @@ class AutoDocumentationGenerator:
         field_analysis = []
         
         for field_name in all_fields:
+            # Filtrer les field_name None ou vides
+            if not field_name or field_name == '':
+                continue
+                
             # Collecter toutes les valeurs pour ce champ
             values = [record.get(field_name) for record in data_records]
             non_null_values = [v for v in values if v is not None and v != '']
@@ -268,6 +272,9 @@ class AutoDocumentationGenerator:
     
     def _is_potential_key(self, field_name: str, unique_count: int, total_count: int) -> bool:
         """Détermine si un champ est potentiellement une clé"""
+        if not field_name:
+            return False
+            
         key_indicators = ['id', 'code', 'key', 'identifier', 'uuid']
         
         # Test par nom
@@ -516,19 +523,23 @@ class AutoDocumentationGenerator:
         """Génère les règles de validation pour un champ"""
         rules = []
         
-        field_name = field['field_name'].lower()
-        field_type = field['inferred_type']
+        field_name = field.get('field_name')
+        if not field_name:
+            return rules
+            
+        field_name_lower = field_name.lower()
+        field_type = field.get('inferred_type', 'unknown')
         
         # Règles basées sur le nom
-        if 'email' in field_name:
+        if 'email' in field_name_lower:
             rules.append("Format email valide")
-        elif 'phone' in field_name or 'telephone' in field_name:
+        elif 'phone' in field_name_lower or 'telephone' in field_name_lower:
             rules.append("Format téléphone français")
-        elif 'arrondissement' in field_name:
+        elif 'arrondissement' in field_name_lower:
             rules.append("Code arrondissement parisien (75001-75020)")
-        elif 'montant' in field_name or 'budget' in field_name:
+        elif 'montant' in field_name_lower or 'budget' in field_name_lower:
             rules.append("Montant positif en euros")
-        elif 'pourcentage' in field_name:
+        elif 'pourcentage' in field_name_lower:
             rules.append("Valeur entre 0 et 100")
         
         # Règles basées sur le type

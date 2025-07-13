@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
+from datetime import datetime
 
 from ..models.user import User
 from ..api.dependencies import require_admin
@@ -19,12 +20,12 @@ router = APIRouter(prefix="/data", tags=["Data Pipeline"])
 
 
 class PipelineRunRequest(BaseModel):
-    use_mock_data: bool = True
+    use_mock_data: bool = False  # Par défaut, utiliser les vraies données
     source_keys: Optional[List[str]] = None
 
 
 class FusionTestRequest(BaseModel):
-    use_mock_data: bool = True
+    use_mock_data: bool = False  # Par défaut, utiliser les vraies données
     fusion_type: str = "civic_engagement"
 
 
@@ -43,6 +44,23 @@ async def get_pipeline_status():
         )
 
 
+@router.get("/last-run")
+async def get_last_pipeline_run():
+    """
+    Récupère les informations de la dernière exécution du pipeline
+    """
+    try:
+        if pipeline.last_run is None:
+            return JSONResponse(content=None)
+        
+        return JSONResponse(content=pipeline.last_run)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lors de la récupération de la dernière exécution: {str(e)}"
+        )
+
+
 @router.get("/sources")
 async def list_data_sources():
     """
@@ -50,20 +68,23 @@ async def list_data_sources():
     """
     try:
         sources = pipeline.source_manager.list_sources()
-        return {
-            "sources": [
-                {
-                    "key": key,
-                    "name": source.name,
-                    "url": source.url,
-                    "format": source.format,
-                    "description": source.description,
-                    "update_frequency": source.update_frequency
-                }
-                for key, source in sources.items()
-            ],
-            "total_sources": len(sources)
-        }
+        
+        formatted_sources = []
+        for key, source in sources.items():
+            formatted_sources.append({
+                "key": key,
+                "name": source.name,
+                "url": source.url,
+                "format": source.format,
+                "description": source.description,
+                "update_frequency": source.update_frequency,
+                "last_updated": source.last_updated.isoformat() if source.last_updated else None
+            })
+        
+        return JSONResponse(content={
+            "sources": formatted_sources,
+            "total_sources": len(formatted_sources)
+        })
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -306,6 +327,50 @@ async def _run_partial_pipeline(source_keys: List[str], use_mock_data: bool):
     except Exception as e:
         print(f"Erreur pipeline partiel: {e}")
         return {"error": str(e)}
+
+
+@router.get("/datasets")
+async def get_all_datasets(limit: int = 100):
+    """
+    Retourne tous les datasets disponibles dans la base de données
+    """
+    from ..core.database import get_db
+    from ..models.dataset import Dataset
+    from sqlalchemy.orm import Session
+    
+    db_gen = get_db()
+    db = next(db_gen)
+    
+    try:
+        datasets = db.query(Dataset).limit(limit).all()
+        
+        result = []
+        for dataset in datasets:
+            # Récupérer un échantillon de données
+            sample_data = []
+            if dataset.processing_config and 'data' in dataset.processing_config:
+                sample_data = dataset.processing_config['data'][:5]  # 5 premiers enregistrements
+            
+            result.append({
+                "id": dataset.id,
+                "name": dataset.name,
+                "data_type": dataset.processing_config.get('data_type', 'unknown') if dataset.processing_config else 'unknown',
+                "total_records": dataset.rows_count or 0,
+                "quality_score": dataset.overall_quality_score or 0.0,
+                "sample_data": sample_data,
+                "status": dataset.status.value if dataset.status else 'unknown',
+                "created_at": dataset.created_at.isoformat() if dataset.created_at else None,
+                "processed_at": dataset.processed_at.isoformat() if dataset.processed_at else None
+            })
+        
+        return {
+            "datasets": result,
+            "total": len(result),
+            "retrieved_at": datetime.now().isoformat()
+        }
+        
+    finally:
+        db.close()
 
 
 @router.get("/datasets/{dataset_id}/data")

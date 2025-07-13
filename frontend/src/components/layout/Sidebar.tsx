@@ -349,7 +349,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* Footer */}
       <div className="p-4 border-t space-y-2">
         <div className="flex gap-2">
-          <TooltipProvider>
+          {/* <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
@@ -366,7 +366,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <p>Recherche globale</p>
               </TooltipContent>
             </Tooltip>
-          </TooltipProvider>
+          </TooltipProvider> */}
 
           <TooltipProvider>
             <Tooltip>

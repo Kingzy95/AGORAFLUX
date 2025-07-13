@@ -17,6 +17,7 @@ import Projects from './pages/Projects';
 import ExportCenter from './pages/ExportCenter';
 import UIDemo from './pages/UIDemo';
 import NewProject from './pages/NewProject';
+import AnalyticsDashboard from './components/analytics/AnalyticsDashboard';
 
 // Placeholder components pour les pages manquantes
 const Profile = () => <div className="p-8 text-center">Profil en cours de développement...</div>;
@@ -30,7 +31,7 @@ const ForgotPassword = () => <div className="p-8 text-center">Mot de passe oubli
 // Pages spécifiques au dashboard
 const DashboardDiscussions = () => <div className="p-8 text-center">Discussions du dashboard en cours de développement...</div>;
 const DashboardCommunity = () => <div className="p-8 text-center">Communauté du dashboard en cours de développement...</div>;
-const DashboardAnalytics = () => <div className="p-8 text-center">Analytics du dashboard en cours de développement...</div>;
+// DashboardAnalytics maintenant utilise le composant complet AnalyticsDashboard
 const DashboardReports = () => <div className="p-8 text-center">Rapports du dashboard en cours de développement...</div>;
 
 // Configuration de React Query
@@ -69,7 +70,7 @@ function App() {
               <Route index element={<CollaborativeDashboard />} />
               <Route path="discussions" element={<DashboardDiscussions />} />
               <Route path="community" element={<DashboardCommunity />} />
-              <Route path="analytics" element={<DashboardAnalytics />} />
+              <Route path="analytics" element={<AnalyticsDashboard />} />
               <Route path="reports" element={<DashboardReports />} />
             </Route>
             

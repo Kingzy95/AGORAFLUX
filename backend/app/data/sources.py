@@ -30,26 +30,40 @@ class DataSourceManager:
     
     def __init__(self):
         self.sources = {
-            'paris_budget': DataSource(
-                name="Budget Paris Open Data",
-                url="https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/budget-de-la-ville-de-paris/exports/csv",
+            'energy_paris': DataSource(
+                name="Consommation Énergie Paris",
+                url="https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/energies-energie-totale-consommee-a-paris/exports/csv?limit=100",
                 format="csv",
-                description="Budget municipal de Paris par secteur",
+                description="Consommation énergétique totale à Paris",
                 update_frequency="yearly"
             ),
-            'paris_particiption': DataSource(
-                name="Participation Citoyenne Paris",
-                url="https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/les-donnees-des-urnes-elections-europeennes-2024/exports/csv",
+            'bike_counting': DataSource(
+                name="Comptage Vélos Paris",
+                url="https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/comptage-velo-compteurs/exports/csv?limit=200",
                 format="csv", 
-                description="Données de participation citoyenne",
-                update_frequency="monthly"
-            ),
-            'transport_national': DataSource(
-                name="Transport Data France",
-                url="https://transport.data.gouv.fr/api/stats",
-                format="json",
-                description="Statistiques nationales de transport",
+                description="Compteurs de vélos permanents à Paris",
                 update_frequency="daily"
+            ),
+            'city_incidents': DataSource(
+                name="Anomalies Urbaines Paris",
+                url="https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/dans-ma-rue/exports/csv?limit=500",
+                format="csv",
+                description="Anomalies signalées via l'app Dans Ma Rue",
+                update_frequency="daily"
+            ),
+            'transport_data': DataSource(
+                name="Transport Vélib' Paris",
+                url="https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/velib-disponibilite-en-temps-reel/exports/csv?limit=100",
+                format="csv",
+                description="Disponibilité Vélib' en temps réel",
+                update_frequency="daily"
+            ),
+            'equipment_paris': DataSource(
+                name="Équipements Culturels Paris",
+                url="https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/que-faire-a-paris-/exports/csv?limit=300",
+                format="csv",
+                description="Événements et équipements culturels parisiens",
+                update_frequency="weekly"
             )
         }
     
