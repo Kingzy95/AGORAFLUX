@@ -16,6 +16,26 @@ import {
   CreateCommentRequest 
 } from '../types/project';
 
+// Interface temporaire pour les commentaires tels que retournés par le backend
+export interface BackendComment {
+  id: number;
+  content: string;
+  type: string;
+  status: string;
+  author: {
+    id: number;
+    name: string;
+    avatar: string;
+    role: string;
+  };
+  created_at: string;
+  updated_at: string | null;
+  likes_count: number;
+  replies_count: number;
+  is_edited: boolean;
+  is_pinned: boolean;
+}
+
 class ApiService {
   private api: AxiosInstance;
   private baseURL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api/v1';
@@ -200,13 +220,13 @@ class ApiService {
 
   // === COMMENTAIRES ===
 
-  async getComments(projectId: number): Promise<Comment[]> {
-    const response: AxiosResponse<Comment[]> = await this.api.get(`/projects/${projectId}/comments`);
-    return response.data;
+  async getComments(projectId: number): Promise<BackendComment[]> {
+    const response: AxiosResponse<{comments: BackendComment[]}> = await this.api.get(`/projects/${projectId}/comments`);
+    return response.data.comments;
   }
 
-  async createComment(projectId: number, data: CreateCommentRequest): Promise<Comment> {
-    const response: AxiosResponse<Comment> = await this.api.post(`/projects/${projectId}/comments`, data);
+  async createComment(projectId: number, data: CreateCommentRequest): Promise<BackendComment> {
+    const response: AxiosResponse<BackendComment> = await this.api.post(`/projects/${projectId}/comments`, data);
     return response.data;
   }
 

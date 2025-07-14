@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.api.dependencies import get_current_user
 from app.models.user import User
 from app.models.project import Project, ProjectStatus, ProjectVisibility
+from app.models.comment import Comment, CommentType, CommentStatus
 from app.schemas.project import (
     ProjectCreate, ProjectUpdate, ProjectPublic, ProjectSummary,
     ProjectList, ProjectStatusUpdate, ProjectSearch
@@ -368,3 +369,278 @@ async def search_projects(
         per_page=search_params.per_page,
         pages=(total + search_params.per_page - 1) // search_params.per_page
     ) 
+
+
+@router.get("/{project_id}/comments")
+async def get_project_comments(
+    project_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Récupère tous les commentaires d'un projet
+    """
+    # Vérifier que le projet existe
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Projet non trouvé"
+        )
+    
+    # Récupérer les commentaires avec leurs auteurs
+    comments = db.query(Comment).filter(
+        Comment.project_id == project_id,
+        Comment.status == CommentStatus.ACTIVE
+    ).order_by(Comment.created_at.desc()).all()
+    
+    # Formater les commentaires pour le frontend
+    formatted_comments = []
+    for comment in comments:
+        formatted_comments.append({
+            "id": comment.id,
+            "content": comment.content,
+            "type": comment.type.value,
+            "status": comment.status.value,
+            "author": {
+                "id": comment.author.id,
+                "name": f"{comment.author.first_name} {comment.author.last_name}",
+                "avatar": f"{comment.author.first_name[0]}{comment.author.last_name[0]}",
+                "role": comment.author.role.value
+            },
+            "created_at": comment.created_at.isoformat(),
+            "updated_at": comment.updated_at.isoformat() if comment.updated_at else None,
+            "likes_count": comment.likes_count,
+            "replies_count": comment.replies_count,
+            "is_edited": comment.is_edited,
+            "is_pinned": comment.is_pinned
+        })
+    
+    return {"comments": formatted_comments}
+
+
+@router.post("/{project_id}/comments")
+async def create_project_comment(
+    project_id: int,
+    comment_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Crée un nouveau commentaire sur un projet
+    """
+    # Vérifier que le projet existe
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Projet non trouvé"
+        )
+    
+    # Vérifier que les commentaires sont autorisés
+    if not project.allow_comments:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Les commentaires ne sont pas autorisés sur ce projet"
+        )
+    
+    # Déterminer le type de commentaire
+    comment_type = CommentType.COMMENT
+    if comment_data.get("type"):
+        try:
+            comment_type = CommentType(comment_data["type"])
+        except ValueError:
+            comment_type = CommentType.COMMENT
+    
+    # Créer le commentaire
+    comment = Comment(
+        content=comment_data["content"],
+        type=comment_type,
+        status=CommentStatus.ACTIVE,
+        author_id=current_user.id,
+        project_id=project_id,
+        created_at=datetime.utcnow()
+    )
+    
+    db.add(comment)
+    
+    # Mettre à jour le compteur de commentaires du projet
+    project.comments_count += 1
+    
+    db.commit()
+    db.refresh(comment)
+    
+    # Retourner le commentaire formaté
+    return {
+        "id": comment.id,
+        "content": comment.content,
+        "type": comment.type.value,
+        "status": comment.status.value,
+        "author": {
+            "id": current_user.id,
+            "name": f"{current_user.first_name} {current_user.last_name}",
+            "avatar": f"{current_user.first_name[0]}{current_user.last_name[0]}",
+            "role": current_user.role.value
+        },
+        "created_at": comment.created_at.isoformat(),
+        "updated_at": None,
+        "likes_count": 0,
+        "replies_count": 0,
+        "is_edited": False,
+        "is_pinned": False
+    }
+
+
+@router.put("/{project_id}/comments/{comment_id}")
+async def update_project_comment(
+    project_id: int,
+    comment_id: int,
+    comment_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Met à jour un commentaire
+    """
+    comment = db.query(Comment).filter(
+        Comment.id == comment_id,
+        Comment.project_id == project_id
+    ).first()
+    
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Commentaire non trouvé"
+        )
+    
+    # Vérifier les permissions
+    if comment.author_id != current_user.id and current_user.role.value not in ['admin', 'moderateur']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permissions insuffisantes"
+        )
+    
+    # Mettre à jour le commentaire
+    comment.content = comment_data["content"]
+    comment.is_edited = True
+    comment.edited_at = datetime.utcnow()
+    comment.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(comment)
+    
+    return {
+        "id": comment.id,
+        "content": comment.content,
+        "type": comment.type.value,
+        "status": comment.status.value,
+        "author": {
+            "id": comment.author.id,
+            "name": f"{comment.author.first_name} {comment.author.last_name}",
+            "avatar": f"{comment.author.first_name[0]}{comment.author.last_name[0]}",
+            "role": comment.author.role.value
+        },
+        "created_at": comment.created_at.isoformat(),
+        "updated_at": comment.updated_at.isoformat(),
+        "likes_count": comment.likes_count,
+        "replies_count": comment.replies_count,
+        "is_edited": comment.is_edited,
+        "is_pinned": comment.is_pinned
+    }
+
+
+@router.delete("/{project_id}/comments/{comment_id}")
+async def delete_project_comment(
+    project_id: int,
+    comment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Supprime un commentaire
+    """
+    comment = db.query(Comment).filter(
+        Comment.id == comment_id,
+        Comment.project_id == project_id
+    ).first()
+    
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Commentaire non trouvé"
+        )
+    
+    # Vérifier les permissions
+    if comment.author_id != current_user.id and current_user.role.value not in ['admin', 'moderateur']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permissions insuffisantes"
+        )
+    
+    # Marquer comme supprimé au lieu de supprimer définitivement
+    comment.status = CommentStatus.DELETED
+    comment.updated_at = datetime.utcnow()
+    
+    # Décrémenter le compteur de commentaires du projet
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if project:
+        project.comments_count = max(0, project.comments_count - 1)
+    
+    db.commit()
+    
+    return {"message": "Commentaire supprimé"}
+
+
+@router.post("/{project_id}/comments/{comment_id}/like")
+async def like_project_comment(
+    project_id: int,
+    comment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Like un commentaire
+    """
+    comment = db.query(Comment).filter(
+        Comment.id == comment_id,
+        Comment.project_id == project_id
+    ).first()
+    
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Commentaire non trouvé"
+        )
+    
+    # TODO: Vérifier si l'utilisateur a déjà liké (table de liaison)
+    comment.likes_count += 1
+    db.commit()
+    
+    return {"message": "Commentaire liké", "likes_count": comment.likes_count}
+
+
+@router.delete("/{project_id}/comments/{comment_id}/like")
+async def unlike_project_comment(
+    project_id: int,
+    comment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Unlike un commentaire
+    """
+    comment = db.query(Comment).filter(
+        Comment.id == comment_id,
+        Comment.project_id == project_id
+    ).first()
+    
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Commentaire non trouvé"
+        )
+    
+    # TODO: Vérifier si l'utilisateur avait liké (table de liaison)
+    comment.likes_count = max(0, comment.likes_count - 1)
+    db.commit()
+    
+    return {"message": "Like retiré", "likes_count": comment.likes_count} 
