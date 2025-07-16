@@ -23,6 +23,8 @@ export interface BackendComment {
   content: string;
   type: string;
   status: string;
+  parent_id?: number;
+  thread_depth: number;
   author: {
     id: number;
     name: string;
@@ -35,6 +37,7 @@ export interface BackendComment {
   replies_count: number;
   is_edited: boolean;
   is_pinned: boolean;
+  replies?: BackendComment[];
 }
 
 class ApiService {
@@ -271,9 +274,9 @@ class ApiService {
 
   // === COMMENTAIRES ===
 
-  async getComments(projectId: number): Promise<BackendComment[]> {
-    const response: AxiosResponse<{comments: BackendComment[]}> = await this.api.get(`/projects/${projectId}/comments`);
-    return response.data.comments;
+  async getComments(projectId: number): Promise<{comments: BackendComment[], stats: any}> {
+    const response: AxiosResponse<{comments: BackendComment[], stats: any}> = await this.api.get(`/projects/${projectId}/comments`);
+    return response.data;
   }
 
   async getAllDiscussions(params: {
@@ -315,21 +318,21 @@ class ApiService {
     return response.data;
   }
 
-  async updateComment(id: number, content: string): Promise<Comment> {
-    const response: AxiosResponse<Comment> = await this.api.put(`/comments/${id}`, { content });
+  async updateComment(projectId: number, commentId: number, data: { content: string }): Promise<BackendComment> {
+    const response: AxiosResponse<BackendComment> = await this.api.put(`/projects/${projectId}/comments/${commentId}`, data);
     return response.data;
   }
 
-  async deleteComment(id: number): Promise<void> {
-    await this.api.delete(`/comments/${id}`);
+  async deleteComment(projectId: number, commentId: number): Promise<void> {
+    await this.api.delete(`/projects/${projectId}/comments/${commentId}`);
   }
 
-  async likeComment(id: number): Promise<void> {
-    await this.api.post(`/comments/${id}/like`);
+  async likeComment(projectId: number, commentId: number): Promise<void> {
+    await this.api.post(`/projects/${projectId}/comments/${commentId}/like`);
   }
 
-  async unlikeComment(id: number): Promise<void> {
-    await this.api.delete(`/comments/${id}/like`);
+  async unlikeComment(projectId: number, commentId: number): Promise<void> {
+    await this.api.delete(`/projects/${projectId}/comments/${commentId}/like`);
   }
 
   // === UTILITAIRES ===

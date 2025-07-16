@@ -467,7 +467,7 @@ async def get_project_comments(
     db: Session = Depends(get_db)
 ):
     """
-    Récupère tous les commentaires d'un projet
+    Récupère tous les commentaires d'un projet avec structure hiérarchique
     """
     # Vérifier que le projet existe
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -477,20 +477,21 @@ async def get_project_comments(
             detail="Projet non trouvé"
         )
     
-    # Récupérer les commentaires avec leurs auteurs
+    # Récupérer tous les commentaires actifs du projet
     comments = db.query(Comment).filter(
         Comment.project_id == project_id,
         Comment.status == CommentStatus.ACTIVE
-    ).order_by(Comment.created_at.desc()).all()
+    ).order_by(Comment.created_at.asc()).all()
     
-    # Formater les commentaires pour le frontend
-    formatted_comments = []
-    for comment in comments:
-        formatted_comments.append({
+    def format_comment(comment):
+        """Formater un commentaire pour le frontend"""
+        return {
             "id": comment.id,
             "content": comment.content,
             "type": comment.type.value,
             "status": comment.status.value,
+            "parent_id": comment.parent_id,
+            "thread_depth": comment.thread_depth,
             "author": {
                 "id": comment.author.id,
                 "name": f"{comment.author.first_name} {comment.author.last_name}",
@@ -502,10 +503,60 @@ async def get_project_comments(
             "likes_count": comment.likes_count,
             "replies_count": comment.replies_count,
             "is_edited": comment.is_edited,
-            "is_pinned": comment.is_pinned
-        })
+            "is_pinned": comment.is_pinned,
+            "replies": []  # Sera rempli par build_comment_tree
+        }
     
-    return {"comments": formatted_comments}
+    def build_comment_tree(comments_list):
+        """Construire l'arbre hiérarchique des commentaires"""
+        # Organiser les commentaires par ID pour un accès rapide
+        comments_by_id = {comment.id: format_comment(comment) for comment in comments_list}
+        
+        # Séparer les commentaires racine des réponses
+        root_comments = []
+        
+        for comment in comments_list:
+            formatted_comment = comments_by_id[comment.id]
+            
+            if comment.parent_id is None:
+                # Commentaire racine
+                root_comments.append(formatted_comment)
+            else:
+                # Réponse - l'ajouter au parent
+                parent_comment = comments_by_id.get(comment.parent_id)
+                if parent_comment:
+                    parent_comment["replies"].append(formatted_comment)
+        
+        # Trier les commentaires racine par date (plus récent en premier)
+        root_comments.sort(key=lambda x: x["created_at"], reverse=True)
+        
+        # Trier les réponses par date (plus ancien en premier pour suivre la conversation)
+        def sort_replies_recursively(comment):
+            comment["replies"].sort(key=lambda x: x["created_at"])
+            for reply in comment["replies"]:
+                sort_replies_recursively(reply)
+        
+        for comment in root_comments:
+            sort_replies_recursively(comment)
+        
+        return root_comments
+    
+    # Construire l'arbre des commentaires
+    threaded_comments = build_comment_tree(comments)
+    
+    # Calculer les statistiques
+    total_comments = len(comments)
+    total_threads = len([c for c in comments if c.parent_id is None])
+    max_depth = max([c.thread_depth for c in comments], default=0)
+    
+    return {
+        "comments": threaded_comments,
+        "stats": {
+            "total_comments": total_comments,
+            "total_threads": total_threads,
+            "max_depth": max_depth
+        }
+    }
 
 
 @router.post("/{project_id}/comments")
@@ -516,7 +567,7 @@ async def create_project_comment(
     db: Session = Depends(get_db)
 ):
     """
-    Crée un nouveau commentaire sur un projet
+    Crée un nouveau commentaire sur un projet (avec support des threads)
     """
     # Vérifier que le projet existe
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -541,6 +592,30 @@ async def create_project_comment(
         except ValueError:
             comment_type = CommentType.COMMENT
     
+    # Gérer les threads (réponses)
+    parent_id = comment_data.get("parent_id")
+    thread_depth = 0
+    
+    if parent_id:
+        # Vérifier que le commentaire parent existe
+        parent_comment = db.query(Comment).filter(
+            Comment.id == parent_id,
+            Comment.project_id == project_id,
+            Comment.status == CommentStatus.ACTIVE
+        ).first()
+        
+        if not parent_comment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Commentaire parent non trouvé"
+            )
+        
+        # Calculer la profondeur (limiter à 5 niveaux max)
+        thread_depth = min(parent_comment.thread_depth + 1, 5)
+        
+        # Incrémenter le compteur de réponses du parent
+        parent_comment.replies_count += 1
+    
     # Créer le commentaire
     comment = Comment(
         content=comment_data["content"],
@@ -548,6 +623,8 @@ async def create_project_comment(
         status=CommentStatus.ACTIVE,
         author_id=current_user.id,
         project_id=project_id,
+        parent_id=parent_id,
+        thread_depth=thread_depth,
         created_at=datetime.utcnow()
     )
     
@@ -559,12 +636,57 @@ async def create_project_comment(
     db.commit()
     db.refresh(comment)
     
+    # Créer une notification pour le propriétaire du projet (si différent)
+    if project.owner_id != current_user.id:
+        from app.api.notifications import create_notification
+        await create_notification(
+            type="comment",
+            title="Nouveau commentaire",
+            message=f"{current_user.first_name} {current_user.last_name} a commenté votre projet '{project.title}'",
+            recipient_id=str(project.owner_id),
+            sender_id=str(current_user.id),
+            data={
+                "project_id": project_id,
+                "project_name": project.title,
+                "comment_id": comment.id,
+                "comment_type": comment_type.value,
+                "comment_preview": comment_data["content"][:100] + "..." if len(comment_data["content"]) > 100 else comment_data["content"],
+                "is_reply": parent_id is not None,
+                "thread_depth": thread_depth
+            },
+            priority="normal"
+        )
+    
+    # Si c'est une réponse, notifier l'auteur du commentaire parent
+    if parent_id:
+        parent_comment = db.query(Comment).filter(Comment.id == parent_id).first()
+        if parent_comment and parent_comment.author_id != current_user.id:
+            from app.api.notifications import create_notification
+            await create_notification(
+                type="comment",
+                title="Réponse à votre commentaire",
+                message=f"{current_user.first_name} {current_user.last_name} a répondu à votre commentaire",
+                recipient_id=str(parent_comment.author_id),
+                sender_id=str(current_user.id),
+                data={
+                    "project_id": project_id,
+                    "project_name": project.title,
+                    "comment_id": comment.id,
+                    "parent_comment_id": parent_id,
+                    "comment_preview": comment_data["content"][:100] + "..." if len(comment_data["content"]) > 100 else comment_data["content"],
+                    "thread_depth": thread_depth
+                },
+                priority="normal"
+            )
+    
     # Retourner le commentaire formaté
     return {
         "id": comment.id,
         "content": comment.content,
         "type": comment.type.value,
         "status": comment.status.value,
+        "parent_id": comment.parent_id,
+        "thread_depth": comment.thread_depth,
         "author": {
             "id": current_user.id,
             "name": f"{current_user.first_name} {current_user.last_name}",
@@ -572,11 +694,11 @@ async def create_project_comment(
             "role": current_user.role.value
         },
         "created_at": comment.created_at.isoformat(),
-        "updated_at": None,
-        "likes_count": 0,
-        "replies_count": 0,
-        "is_edited": False,
-        "is_pinned": False
+        "likes_count": comment.likes_count,
+        "replies_count": comment.replies_count,
+        "is_edited": comment.is_edited,
+        "is_pinned": comment.is_pinned,
+        "replies": []
     }
 
 

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiService, { BackendComment } from '../services/api';
 import { Project, Dataset, CreateCommentRequest } from '../types/project';
+import { CommentSection } from '../components/comments';
 
 const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -56,7 +57,7 @@ const ProjectDetail: React.FC = () => {
     
     try {
       const response = await apiService.getComments(parseInt(id));
-      setComments(response);
+      setComments(response.comments);
     } catch (err: any) {
       console.error('Erreur lors du chargement des commentaires:', err);
       // Ne pas bloquer l'interface si les commentaires ne se chargent pas
@@ -172,7 +173,7 @@ const ProjectDetail: React.FC = () => {
       }));
       
       // Appel API
-      await apiService.likeComment(commentId);
+      await apiService.likeComment(parseInt(id!), commentId);
       
     } catch (error: any) {
       console.error('Erreur lors du like:', error);
@@ -413,87 +414,12 @@ const ProjectDetail: React.FC = () => {
               </div>
             )}
 
-            {/* Commentaires */}
-            <div className="bg-white rounded-lg border border-slate-200 p-4">
-              <h4 className="font-medium text-slate-900 mb-4">
-                Discussion ({comments.length})
-              </h4>
-              
-              {/* Formulaire d'ajout de commentaire */}
-              {isAuthenticated && (
-                <div className="mb-4">
-                  <div className="mb-2">
-                    <select
-                      value={commentType}
-                      onChange={(e) => setCommentType(e.target.value as any)}
-                      className="text-sm border border-slate-300 rounded px-2 py-1"
-                    >
-                      <option value="COMMENT">Commentaire</option>
-                      <option value="QUESTION">Question</option>
-                      <option value="SUGGESTION">Suggestion</option>
-                    </select>
-                  </div>
-                  <textarea
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Ajoutez votre commentaire..."
-                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                    rows={3}
-                  />
-                  <div className="flex justify-end mt-2">
-                    <button
-                      onClick={handleAddComment}
-                      disabled={!newComment.trim() || isSubmittingComment}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isSubmittingComment ? 'Publication...' : 'Publier'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Liste des commentaires */}
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                {comments.map(comment => (
-                  <div key={comment.id} className="border-b border-slate-100 pb-4 last:border-b-0">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-medium">
-                        {comment.author.avatar}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-medium text-slate-900">
-                            {comment.author.name}
-                          </span>
-                          <span className={`px-2 py-0.5 text-xs rounded-full ${getCommentTypeColor(comment.type)}`}>
-                            {getCommentTypeLabel(comment.type)}
-                          </span>
-                          <span className="text-xs text-slate-500">
-                            {new Date(comment.created_at).toLocaleDateString('fr-FR')}
-                          </span>
-                        </div>
-                        <p className="text-sm text-slate-700 mb-2">{comment.content}</p>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => toggleLike(comment.id)}
-                            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-slate-500 hover:bg-slate-100"
-                          >
-                            <span className="material-icons text-xs">thumb_up</span>
-                            {comment.likes_count}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                
-                {comments.length === 0 && (
-                  <div className="text-center py-4 text-slate-500">
-                    <p>Aucun commentaire pour le moment</p>
-                  </div>
-                )}
-              </div>
-            </div>
+            {/* Commentaires avec threads */}
+            <CommentSection
+              projectId={parseInt(id!)}
+              currentUserId={user?.id}
+              allowComments={project.allow_comments}
+            />
           </div>
         </div>
       </div>
