@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, AuthContextType, LoginRequest, RegisterRequest } from '../types/auth';
+import { User, AuthContextType, LoginRequest, RegisterRequest, UpdateProfileRequest } from '../types/auth';
 import apiService from '../services/api';
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -105,6 +105,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const updateProfile = async (data: UpdateProfileRequest): Promise<void> => {
+    try {
+      const updatedUser = await apiService.updateProfile(data);
+      setUser(updatedUser);
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du profil:', error);
+      throw error;
+    }
+  };
+
   const value: AuthContextType = {
     user,
     isAuthenticated,
@@ -113,6 +123,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     register,
     refreshToken,
+    updateProfile,
   };
 
   return (

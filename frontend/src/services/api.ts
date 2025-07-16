@@ -4,6 +4,7 @@ import {
   LoginResponse, 
   RegisterRequest, 
   ChangePasswordRequest,
+  UpdateProfileRequest,
   User,
   AuthStatus 
 } from '../types/auth';
@@ -105,6 +106,11 @@ class ApiService {
     return response.data;
   }
 
+  async updateProfile(data: UpdateProfileRequest): Promise<User> {
+    const response: AxiosResponse<User> = await this.api.put('/auth/me', data);
+    return response.data;
+  }
+
   async refreshToken(refreshToken: string): Promise<AxiosResponse<LoginResponse>> {
     return this.api.post('/auth/refresh', { refresh_token: refreshToken });
   }
@@ -133,6 +139,51 @@ class ApiService {
 
   async getAllUsers(): Promise<User[]> {
     const response: AxiosResponse<User[]> = await this.api.get('/auth/users');
+    return response.data;
+  }
+
+  async getCommunityStats(params: {
+    page?: number;
+    per_page?: number;
+    sort_by?: string;
+    sort_order?: string;
+  } = {}): Promise<{
+    community_stats: {
+      total_users: number;
+      active_users_30d: number;
+      new_users_7d: number;
+      online_users: number;
+      by_role: { [role: string]: number };
+      avg_contributions: number;
+    };
+    members: Array<{
+      id: number;
+      name: string;
+      avatar: string;
+      role: string;
+      bio?: string;
+      created_at: string;
+      last_login?: string;
+      days_since_creation: number;
+      days_since_last_login?: number;
+      is_online: boolean;
+      stats: {
+        projects_count: number;
+        datasets_count: number;
+        comments_count: number;
+        total_contributions: number;
+      };
+    }>;
+    top_contributors: Array<any>;
+    online_users: Array<any>;
+    pagination: {
+      total: number;
+      page: number;
+      per_page: number;
+      pages: number;
+    };
+  }> {
+    const response = await this.api.get('/auth/community/stats', { params });
     return response.data;
   }
 
@@ -223,6 +274,40 @@ class ApiService {
   async getComments(projectId: number): Promise<BackendComment[]> {
     const response: AxiosResponse<{comments: BackendComment[]}> = await this.api.get(`/projects/${projectId}/comments`);
     return response.data.comments;
+  }
+
+  async getAllDiscussions(params: {
+    page?: number;
+    per_page?: number;
+    comment_type?: string;
+    search?: string;
+    sort_by?: string;
+    sort_order?: string;
+  } = {}): Promise<{
+    discussions: Array<BackendComment & {
+      project: {
+        id: number;
+        title: string;
+        slug: string;
+      };
+    }>;
+    total: number;
+    page: number;
+    per_page: number;
+    pages: number;
+    stats: {
+      total_discussions: number;
+      active_discussions: number;
+      by_type: {
+        comment: number;
+        question: number;
+        suggestion: number;
+        annotation: number;
+      };
+    };
+  }> {
+    const response = await this.api.get('/projects/discussions', { params });
+    return response.data;
   }
 
   async createComment(projectId: number, data: CreateCommentRequest): Promise<BackendComment> {
@@ -441,11 +526,7 @@ class ApiService {
 
   // === EXPORTS ===
 
-  async getExportHistory(params?: {
-    limit?: number;
-    offset?: number;
-    format_filter?: string;
-  }): Promise<any[]> {
+  async getExportHistory(params: { limit?: number; offset?: number; format_filter?: string } = {}): Promise<any[]> {
     const response = await this.api.get('/exports/history', { params });
     return response.data;
   }
@@ -475,8 +556,105 @@ class ApiService {
     return response.data;
   }
 
+  // === RAPPORTS PDF ===
+
+  async getReportTemplates(): Promise<Array<{
+    id: string;
+    name: string;
+    description: string;
+    template_type: string;
+    sections: string[];
+    charts_included: string[];
+    default_params: any;
+  }>> {
+    const response = await this.api.get('/exports/reports/templates');
+    return response.data;
+  }
+
+  async generateReport(reportRequest: {
+    template_id: string;
+    title: string;
+    period_start: string;
+    period_end: string;
+    sections: string[];
+    include_charts: string[];
+    custom_params?: any;
+  }): Promise<{
+    id: string;
+    title: string;
+    template_id: string;
+    template_name: string;
+    period_start: string;
+    period_end: string;
+    file_name: string;
+    file_size: number;
+    generated_at: string;
+    download_url: string;
+    user_id: string;
+    user_name: string;
+    status: string;
+  }> {
+    const response = await this.api.post('/exports/reports/generate', reportRequest);
+    return response.data;
+  }
+
+  async getReportsHistory(params: { limit?: number; offset?: number; template_filter?: string } = {}): Promise<Array<{
+    id: string;
+    title: string;
+    template_id: string;
+    template_name: string;
+    period_start: string;
+    period_end: string;
+    file_name: string;
+    file_size: number;
+    generated_at: string;
+    download_url: string;
+    user_id: string;
+    user_name: string;
+    status: string;
+  }>> {
+    const response = await this.api.get('/exports/reports/history', { params });
+    return response.data;
+  }
+
   async clearExportHistory(): Promise<void> {
     await this.api.delete('/exports/history/clear');
+  }
+
+  async downloadReport(fileName: string): Promise<Blob> {
+    const response = await this.api.get(`/exports/reports/${fileName}`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  }
+
+  // Méthodes pour les notifications
+  async createTestNotification(): Promise<void> {
+    await this.api.post('/notifications/test');
+  }
+
+  async getNotifications(limit: number = 50, offset: number = 0, unreadOnly: boolean = false): Promise<any[]> {
+    const response = await this.api.get('/notifications', {
+      params: { limit, offset, unread_only: unreadOnly }
+    });
+    return response.data;
+  }
+
+  async getUnreadCount(): Promise<{ unread_count: number }> {
+    const response = await this.api.get('/notifications/unread-count');
+    return response.data;
+  }
+
+  async markNotificationRead(notificationId: string): Promise<void> {
+    await this.api.put(`/notifications/${notificationId}/read`);
+  }
+
+  async markAllNotificationsRead(): Promise<void> {
+    await this.api.put('/notifications/mark-all-read');
+  }
+
+  async deleteNotification(notificationId: string): Promise<void> {
+    await this.api.delete(`/notifications/${notificationId}`);
   }
 }
 

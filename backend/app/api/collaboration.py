@@ -11,6 +11,11 @@ from datetime import datetime
 from app.core.database import get_db
 from app.api.dependencies import get_current_user, require_moderator_or_admin
 from app.models.user import User
+from app.models.project import Project
+from app.models.comment import Comment
+
+# Ajouter l'import pour les notifications
+from app.api.notifications import create_notification
 
 router = APIRouter(prefix="/collaboration", tags=["Collaboration"])
 

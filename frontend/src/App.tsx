@@ -18,21 +18,19 @@ import ExportCenter from './pages/ExportCenter';
 import UIDemo from './pages/UIDemo';
 import NewProject from './pages/NewProject';
 import AnalyticsDashboard from './components/analytics/AnalyticsDashboard';
+import Profile from './pages/Profile';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminUsers from './pages/AdminUsers';
+import DiscussionsDashboard from './pages/DiscussionsDashboard';
+import CommunityDashboard from './pages/CommunityDashboard';
+import ReportsDashboard from './pages/ReportsDashboard';
+import NotificationsPage from './pages/NotificationsPage';
 
 // Placeholder components pour les pages manquantes
-const Profile = () => <div className="p-8 text-center">Profil en cours de développement...</div>;
 const Settings = () => <div className="p-8 text-center">Paramètres en cours de développement...</div>;
-const AdminUsers = () => <div className="p-8 text-center">Gestion des utilisateurs en cours de développement...</div>;
-const AdminDashboard = () => <div className="p-8 text-center">Administration en cours de développement...</div>;
+const ForgotPassword = () => <div className="p-8 text-center">Mot de passe oublié en cours de développement...</div>;
 const Unauthorized = () => <div className="p-8 text-center">Accès non autorisé</div>;
 const NotFound = () => <div className="p-8 text-center">Page non trouvée</div>;
-const ForgotPassword = () => <div className="p-8 text-center">Mot de passe oublié en cours de développement...</div>;
-
-// Pages spécifiques au dashboard
-const DashboardDiscussions = () => <div className="p-8 text-center">Discussions du dashboard en cours de développement...</div>;
-const DashboardCommunity = () => <div className="p-8 text-center">Communauté du dashboard en cours de développement...</div>;
-// DashboardAnalytics maintenant utilise le composant complet AnalyticsDashboard
-const DashboardReports = () => <div className="p-8 text-center">Rapports du dashboard en cours de développement...</div>;
 
 // Configuration de React Query
 const queryClient = new QueryClient({
@@ -68,15 +66,17 @@ function App() {
             {/* Routes avec Dashboard Layout */}
             <Route path="/dashboard" element={<DashboardLayout />}>
               <Route index element={<CollaborativeDashboard />} />
-              <Route path="discussions" element={<DashboardDiscussions />} />
-              <Route path="community" element={<DashboardCommunity />} />
+              <Route path="discussions" element={<DiscussionsDashboard />} />
+              <Route path="community" element={<CommunityDashboard />} />
               <Route path="analytics" element={<AnalyticsDashboard />} />
-              <Route path="reports" element={<DashboardReports />} />
+              <Route path="reports" element={<ReportsDashboard />} />
             </Route>
             
             <Route path="/export-center" element={<DashboardLayout />}>
               <Route index element={<ExportCenter />} />
             </Route>
+
+            <Route path="/notifications" element={<NotificationsPage />} />
             
             {/* Routes utilitaires */}
             <Route path="/ui-demo" element={<UIDemo />} />

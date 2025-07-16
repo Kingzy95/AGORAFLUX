@@ -157,6 +157,8 @@ class CurrentUser(BaseModel):
     email: EmailStr = Field(..., description="Email de l'utilisateur")
     first_name: str = Field(..., description="Prénom")
     last_name: str = Field(..., description="Nom")
+    bio: Optional[str] = Field(None, description="Biographie")
+    avatar_url: Optional[str] = Field(None, description="URL de l'avatar")
     role: UserRole = Field(..., description="Rôle de l'utilisateur")
     is_active: bool = Field(..., description="Statut d'activation")
     is_verified: bool = Field(..., description="Statut de vérification")
@@ -171,11 +173,33 @@ class CurrentUser(BaseModel):
                 "email": "admin@agoraflux.fr",
                 "first_name": "Admin",
                 "last_name": "AgoraFlux",
+                "bio": "Administrateur de la plateforme AgoraFlux",
+                "avatar_url": None,
                 "role": "admin",
                 "is_active": True,
                 "is_verified": True,
                 "created_at": "2024-01-01T00:00:00",
                 "last_login": "2024-01-01T12:00:00"
+            }
+        }
+
+
+class UserProfileUpdate(BaseModel):
+    """
+    Schéma pour la mise à jour du profil utilisateur
+    """
+    first_name: Optional[str] = Field(None, min_length=2, max_length=50, description="Prénom")
+    last_name: Optional[str] = Field(None, min_length=2, max_length=50, description="Nom")
+    bio: Optional[str] = Field(None, max_length=500, description="Biographie")
+    avatar_url: Optional[str] = Field(None, max_length=500, description="URL de l'avatar")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "first_name": "Jean",
+                "last_name": "Dupont",
+                "bio": "Citoyen engagé pour la transparence des données publiques",
+                "avatar_url": "https://example.com/avatar.jpg"
             }
         }
 

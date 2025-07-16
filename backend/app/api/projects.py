@@ -29,6 +29,96 @@ def generate_slug(title: str) -> str:
     return slug.strip('-')
 
 
+@router.get("/discussions")
+async def get_all_discussions(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    comment_type: Optional[str] = None,
+    search: Optional[str] = None,
+    sort_by: str = Query("created_at", regex="^(created_at|likes_count|replies_count)$"),
+    sort_order: str = Query("desc", regex="^(asc|desc)$"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Récupère toutes les discussions/commentaires avec pagination
+    """
+    query = db.query(Comment).filter(
+        Comment.status == CommentStatus.ACTIVE,
+        Comment.parent_id.is_(None)  # Seulement les commentaires de premier niveau
+    )
+    
+    # Filtres
+    if comment_type:
+        try:
+            comment_type_enum = CommentType(comment_type)
+            query = query.filter(Comment.type == comment_type_enum)
+        except ValueError:
+            pass
+    
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(Comment.content.ilike(search_term))
+    
+    # Jointure avec les tables liées pour optimiser les requêtes
+    query = query.join(Comment.author).join(Comment.project)
+    
+    # Tri
+    if sort_order == "desc":
+        query = query.order_by(getattr(Comment, sort_by).desc())
+    else:
+        query = query.order_by(getattr(Comment, sort_by).asc())
+    
+    # Pagination
+    total = query.count()
+    comments = query.offset((page - 1) * per_page).limit(per_page).all()
+    
+    # Formater les commentaires pour le frontend
+    formatted_comments = []
+    for comment in comments:
+        formatted_comments.append({
+            "id": comment.id,
+            "content": comment.content,
+            "type": comment.type.value,
+            "status": comment.status.value,
+            "project": {
+                "id": comment.project.id,
+                "title": comment.project.title,
+                "slug": comment.project.slug
+            },
+            "author": {
+                "id": comment.author.id,
+                "name": f"{comment.author.first_name} {comment.author.last_name}",
+                "avatar": f"{comment.author.first_name[0]}{comment.author.last_name[0]}",
+                "role": comment.author.role.value
+            },
+            "created_at": comment.created_at.isoformat(),
+            "updated_at": comment.updated_at.isoformat() if comment.updated_at else None,
+            "likes_count": comment.likes_count,
+            "replies_count": comment.replies_count,
+            "is_edited": comment.is_edited,
+            "is_pinned": comment.is_pinned
+        })
+    
+    return {
+        "discussions": formatted_comments,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": (total + per_page - 1) // per_page,
+        "stats": {
+            "total_discussions": total,
+            "active_discussions": len([c for c in formatted_comments if c["replies_count"] > 0]),
+            "by_type": {
+                "comment": len([c for c in formatted_comments if c["type"] == "comment"]),
+                "question": len([c for c in formatted_comments if c["type"] == "question"]),
+                "suggestion": len([c for c in formatted_comments if c["type"] == "suggestion"]),
+                "annotation": len([c for c in formatted_comments if c["type"] == "annotation"])
+            }
+        }
+    }
+
+
 @router.get("/", response_model=ProjectList)
 async def get_projects(
     page: int = Query(1, ge=1),
@@ -644,3 +734,93 @@ async def unlike_project_comment(
     db.commit()
     
     return {"message": "Like retiré", "likes_count": comment.likes_count} 
+
+
+@router.get("/discussions")
+async def get_all_discussions(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    comment_type: Optional[str] = None,
+    search: Optional[str] = None,
+    sort_by: str = Query("created_at", regex="^(created_at|likes_count|replies_count)$"),
+    sort_order: str = Query("desc", regex="^(asc|desc)$"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Récupère toutes les discussions/commentaires avec pagination
+    """
+    query = db.query(Comment).filter(
+        Comment.status == CommentStatus.ACTIVE,
+        Comment.parent_id.is_(None)  # Seulement les commentaires de premier niveau
+    )
+    
+    # Filtres
+    if comment_type:
+        try:
+            comment_type_enum = CommentType(comment_type)
+            query = query.filter(Comment.type == comment_type_enum)
+        except ValueError:
+            pass
+    
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(Comment.content.ilike(search_term))
+    
+    # Jointure avec les tables liées pour optimiser les requêtes
+    query = query.join(Comment.author).join(Comment.project)
+    
+    # Tri
+    if sort_order == "desc":
+        query = query.order_by(getattr(Comment, sort_by).desc())
+    else:
+        query = query.order_by(getattr(Comment, sort_by).asc())
+    
+    # Pagination
+    total = query.count()
+    comments = query.offset((page - 1) * per_page).limit(per_page).all()
+    
+    # Formater les commentaires pour le frontend
+    formatted_comments = []
+    for comment in comments:
+        formatted_comments.append({
+            "id": comment.id,
+            "content": comment.content,
+            "type": comment.type.value,
+            "status": comment.status.value,
+            "project": {
+                "id": comment.project.id,
+                "title": comment.project.title,
+                "slug": comment.project.slug
+            },
+            "author": {
+                "id": comment.author.id,
+                "name": f"{comment.author.first_name} {comment.author.last_name}",
+                "avatar": f"{comment.author.first_name[0]}{comment.author.last_name[0]}",
+                "role": comment.author.role.value
+            },
+            "created_at": comment.created_at.isoformat(),
+            "updated_at": comment.updated_at.isoformat() if comment.updated_at else None,
+            "likes_count": comment.likes_count,
+            "replies_count": comment.replies_count,
+            "is_edited": comment.is_edited,
+            "is_pinned": comment.is_pinned
+        })
+    
+    return {
+        "discussions": formatted_comments,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": (total + per_page - 1) // per_page,
+        "stats": {
+            "total_discussions": total,
+            "active_discussions": len([c for c in formatted_comments if c["replies_count"] > 0]),
+            "by_type": {
+                "comment": len([c for c in formatted_comments if c["type"] == "comment"]),
+                "question": len([c for c in formatted_comments if c["type"] == "question"]),
+                "suggestion": len([c for c in formatted_comments if c["type"] == "suggestion"]),
+                "annotation": len([c for c in formatted_comments if c["type"] == "annotation"])
+            }
+        }
+    } 

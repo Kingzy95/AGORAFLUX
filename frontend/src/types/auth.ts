@@ -40,6 +40,13 @@ export interface ChangePasswordRequest {
   confirm_password: string;
 }
 
+export interface UpdateProfileRequest {
+  first_name?: string;
+  last_name?: string;
+  bio?: string;
+  avatar_url?: string;
+}
+
 export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -48,6 +55,7 @@ export interface AuthContextType {
   logout: () => void;
   register: (data: RegisterRequest) => Promise<void>;
   refreshToken: () => Promise<void>;
+  updateProfile: (data: UpdateProfileRequest) => Promise<void>;
 }
 
 export interface AuthStatus {

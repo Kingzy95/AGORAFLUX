@@ -1,43 +1,60 @@
 """
-Routes principales de l'API AgoraFlux
-Agrège tous les routeurs des différents modules
+Configuration des routes principales de l'API AgoraFlux
 """
 
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from typing import List, Optional
+from datetime import datetime, timedelta
+import uuid
+
+from app.core.database import get_db
+from app.api.dependencies import get_current_user
+from app.models.user import User
 
 # Créer le routeur principal
 api_router = APIRouter()
 
-@api_router.get("/")
-async def api_root():
+# Endpoint de santé global
+@api_router.get("/health")
+async def health_check():
     """
-    Point d'entrée de l'API
+    Point de santé global de l'API
     """
-    return JSONResponse(
-        content={
-            "message": "Bienvenue sur l'API AgoraFlux",
-            "version": "1.0.0",
-            "description": "Plateforme de simulation et collaboration citoyenne",
-            "docs": "/docs",
-            "health": "/health"
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "version": "1.0.0",
+        "modules": {
+            "auth": "active",
+            "projects": "active",
+            "datasets": "active",
+            "collaboration": "active",
+            "exports": "active",
+            "notifications": "active",
+            "data_pipeline": "active"
         }
-    )
+    }
 
-@api_router.get("/status")
-async def api_status():
+# Endpoint d'informations sur l'utilisateur connecté
+@api_router.get("/me")
+async def get_current_user_info(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
-    Statut de l'API
+    Récupère les informations de l'utilisateur connecté
     """
-    return JSONResponse(
-        content={
-            "status": "operational",
-            "services": {
-                "database": "connected",
-                "api": "running"
-            }
-        }
-    )
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "role": current_user.role,
+        "is_active": current_user.is_active,
+        "created_at": current_user.created_at,
+        "last_login": current_user.last_login
+    }
 
 # Import des routeurs des modules spécifiques
 from app.api.auth import router as auth_router
@@ -46,6 +63,7 @@ from app.api.collaboration import router as collaboration_router
 from app.api.exports import router as exports_router
 from app.api.projects import router as projects_router
 from app.api.datasets import router as datasets_router
+from app.api.notifications import router as notifications_router
 
 # Inclusion des routeurs
 api_router.include_router(auth_router, prefix="/auth", tags=["authentication"])
@@ -54,14 +72,63 @@ api_router.include_router(datasets_router, tags=["datasets"])
 api_router.include_router(data_router, tags=["pipeline"])
 api_router.include_router(collaboration_router, tags=["collaboration"])
 api_router.include_router(exports_router, tags=["exports"])
+api_router.include_router(notifications_router, tags=["notifications"])
 
-# TODO: Ajouter les autres routeurs
-# from app.api.users import users_router
-# from app.api.projects import projects_router
-# from app.api.datasets import datasets_router
-# from app.api.comments import comments_router
-
-# api_router.include_router(users_router, prefix="/users", tags=["users"])
-# api_router.include_router(projects_router, prefix="/projects", tags=["projects"])
-# api_router.include_router(datasets_router, prefix="/datasets", tags=["datasets"])
-# api_router.include_router(comments_router, prefix="/comments", tags=["comments"]) 
+# Endpoint pour lister tous les endpoints disponibles
+@api_router.get("/endpoints")
+async def list_endpoints():
+    """
+    Liste tous les endpoints disponibles dans l'API
+    """
+    return {
+        "auth": [
+            "POST /auth/register",
+            "POST /auth/login", 
+            "GET /auth/me",
+            "PUT /auth/profile",
+            "GET /auth/users",
+            "GET /auth/community/stats"
+        ],
+        "projects": [
+            "GET /projects",
+            "POST /projects",
+            "GET /projects/{project_id}",
+            "PUT /projects/{project_id}",
+            "DELETE /projects/{project_id}",
+            "GET /projects/discussions"
+        ],
+        "datasets": [
+            "GET /datasets",
+            "POST /datasets",
+            "GET /datasets/{dataset_id}",
+            "PUT /datasets/{dataset_id}",
+            "DELETE /datasets/{dataset_id}"
+        ],
+        "collaboration": [
+            "GET /collaboration/comments",
+            "POST /collaboration/comments",
+            "PUT /collaboration/comments/{comment_id}",
+            "DELETE /collaboration/comments/{comment_id}"
+        ],
+        "exports": [
+            "GET /exports/history",
+            "POST /exports",
+            "GET /exports/statistics",
+            "GET /exports/reports/templates",
+            "POST /exports/reports/generate",
+            "GET /exports/reports/history"
+        ],
+        "notifications": [
+            "WS /notifications/ws/{user_id}",
+            "GET /notifications",
+            "GET /notifications/unread-count",
+            "PUT /notifications/{notification_id}/read",
+            "PUT /notifications/mark-all-read",
+            "DELETE /notifications/{notification_id}"
+        ],
+        "data": [
+            "GET /data/health",
+            "GET /data/opendata/paris",
+            "GET /data/datasets/{dataset_id}/data"
+        ]
+    } 

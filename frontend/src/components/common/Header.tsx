@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Separator } from '../ui/separator';
 import { ArrowLeft, Menu, LogOut, User, Palette } from 'lucide-react';
+import { NotificationDropdown } from '../notifications';
 
 interface HeaderProps {
   title: string;
@@ -98,35 +99,57 @@ const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-2">
             {rightActions}
             
-            {!isAuthenticated ? (
-              <div className="hidden md:flex items-center gap-2">
+            {/* Notifications (seulement si connecté) */}
+            {isAuthenticated && (
+              <NotificationDropdown />
+            )}
+
+            {/* Menu utilisateur */}
+            {isAuthenticated ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="relative h-8 w-8 rounded-full">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="text-xs">
+                        {user?.first_name?.[0]}{user?.last_name?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end">
+                  <div className="flex items-center justify-start gap-2 p-2">
+                    <div className="flex flex-col space-y-1 leading-none">
+                      <p className="font-medium">{user?.first_name} {user?.last_name}</p>
+                      <p className="w-[200px] truncate text-sm text-muted-foreground">
+                        {user?.email}
+                      </p>
+                    </div>
+                  </div>
+                  <Separator />
+                  <DropdownMenuItem onClick={() => navigate('/profile')}>
+                    <User className="mr-2 h-4 w-4" />
+                    Profil
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Déconnexion
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <div className="flex items-center gap-2">
                 <Button 
-                  variant="ghost"
+                  variant="ghost" 
+                  size="sm" 
                   onClick={() => navigate('/login')}
                 >
                   Connexion
                 </Button>
                 <Button 
+                  size="sm" 
                   onClick={() => navigate('/register')}
                 >
-                  S'inscrire
-                </Button>
-              </div>
-            ) : (
-              <div className="hidden md:flex items-center gap-2">
-                <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
-                  <User className="h-4 w-4" />
-                  <span>
-                    {user?.first_name ? `${user.first_name} ${user.last_name}` : user?.email}
-                  </span>
-                </div>
-                <Button 
-                  variant="outline"
-                  size="sm"
-                  onClick={handleLogout}
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Déconnexion
+                  Inscription
                 </Button>
               </div>
             )}
