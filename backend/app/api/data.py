@@ -16,7 +16,7 @@ from ..data.fusion import data_fusion
 from ..data.documentation import auto_doc_generator
 
 
-router = APIRouter(prefix="/data", tags=["Data Pipeline"])
+router = APIRouter()
 
 
 class PipelineRunRequest(BaseModel):

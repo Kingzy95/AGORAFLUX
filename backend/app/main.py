@@ -13,6 +13,7 @@ import uvicorn
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.api.routes import api_router
+from app.middleware.security_middleware import SecurityAuditMiddleware, RateLimitMiddleware
 
 # Configuration du logging
 setup_logging()
@@ -34,6 +35,12 @@ def create_application() -> FastAPI:
         TrustedHostMiddleware,
         allowed_hosts=settings.ALLOWED_HOSTS
     )
+
+    # Middleware d'audit de sécurité
+    app.add_middleware(SecurityAuditMiddleware)
+    
+    # Middleware de limitation de taux
+    app.add_middleware(RateLimitMiddleware, requests_per_minute=120)
 
     # Middleware CORS
     app.add_middleware(

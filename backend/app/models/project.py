@@ -82,6 +82,7 @@ class Project(Base):
     # Relations avec d'autres modèles
     datasets = relationship("Dataset", back_populates="project", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="project", cascade="all, delete-orphan")
+    permissions = relationship("ProjectPermission", back_populates="project", cascade="all, delete-orphan")
     # visualizations = relationship("Visualization", back_populates="project")
 
     def __repr__(self):

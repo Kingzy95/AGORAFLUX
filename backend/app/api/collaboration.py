@@ -17,7 +17,7 @@ from app.models.comment import Comment
 # Ajouter l'import pour les notifications
 from app.api.notifications import create_notification
 
-router = APIRouter(prefix="/collaboration", tags=["Collaboration"])
+router = APIRouter()
 
 
 # Modèles Pydantic pour les requêtes/réponses

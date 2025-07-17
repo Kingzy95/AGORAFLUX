@@ -12,6 +12,9 @@ from app.core.database import get_db
 from app.api.dependencies import get_current_user
 from app.models.user import User
 
+# Importer les routeurs des modules
+from app.api import auth, projects, permissions, data, datasets, collaboration, notifications, exports
+
 # Créer le routeur principal
 api_router = APIRouter()
 
@@ -56,23 +59,15 @@ async def get_current_user_info(
         "last_login": current_user.last_login
     }
 
-# Import des routeurs des modules spécifiques
-from app.api.auth import router as auth_router
-from app.api.data import router as data_router
-from app.api.collaboration import router as collaboration_router
-from app.api.exports import router as exports_router
-from app.api.projects import router as projects_router
-from app.api.datasets import router as datasets_router
-from app.api.notifications import router as notifications_router
-
-# Inclusion des routeurs
-api_router.include_router(auth_router, prefix="/auth", tags=["authentication"])
-api_router.include_router(projects_router, tags=["projects"])
-api_router.include_router(datasets_router, tags=["datasets"])
-api_router.include_router(data_router, tags=["pipeline"])
-api_router.include_router(collaboration_router, tags=["collaboration"])
-api_router.include_router(exports_router, tags=["exports"])
-api_router.include_router(notifications_router, tags=["notifications"])
+# Inclure les sous-routeurs
+api_router.include_router(auth.router, prefix="/auth", tags=["Authentification"])
+api_router.include_router(projects.router, prefix="/projects", tags=["Projets"])
+api_router.include_router(permissions.router, prefix="/permissions", tags=["Permissions"])
+api_router.include_router(data.router, prefix="/data", tags=["Data Pipeline"])
+api_router.include_router(datasets.router, prefix="/datasets", tags=["Datasets"])
+api_router.include_router(collaboration.router, prefix="/collaboration", tags=["Collaboration"])
+api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
+api_router.include_router(exports.router, prefix="/exports", tags=["Exports"])
 
 # Endpoint pour lister tous les endpoints disponibles
 @api_router.get("/endpoints")

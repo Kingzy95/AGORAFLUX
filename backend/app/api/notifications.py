@@ -16,7 +16,7 @@ from app.core.database import get_db
 from app.api.dependencies import get_current_user
 from app.models.user import User
 
-router = APIRouter(prefix="/notifications", tags=["Notifications"])
+router = APIRouter()
 
 # Modèles Pydantic
 class NotificationBase(BaseModel):

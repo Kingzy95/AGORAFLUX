@@ -12,16 +12,24 @@ import uuid
 import os
 import tempfile
 import io
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.lib import colors
-from reportlab.graphics.shapes import Drawing
-from reportlab.graphics.charts.linecharts import HorizontalLineChart
-from reportlab.graphics.charts.barcharts import VerticalBarChart
-from reportlab.graphics.charts.piecharts import Pie
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+
+# Import conditionnel de reportlab
+try:
+    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.graphics.charts.linecharts import HorizontalLineChart
+    from reportlab.graphics.charts.barcharts import VerticalBarChart
+    from reportlab.graphics.charts.piecharts import Pie
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
+    print("⚠️ ReportLab non disponible. Les exports PDF seront désactivés.")
+
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Backend non-interactif
@@ -31,7 +39,7 @@ from app.api.dependencies import get_current_user
 from app.models.user import User
 from app.api.notifications import create_notification
 
-router = APIRouter(prefix="/exports", tags=["Exports"])
+router = APIRouter()
 
 
 # Modèles Pydantic pour les requêtes/réponses
@@ -161,6 +169,9 @@ def generate_professional_pdf(report_data: dict, file_path: str):
     """
     Génère un PDF professionnel avec ReportLab
     """
+    if not REPORTLAB_AVAILABLE:
+        raise ImportError("ReportLab n'est pas installé. Impossible de générer le PDF.")
+
     doc = SimpleDocTemplate(file_path, pagesize=A4)
     styles = getSampleStyleSheet()
     story = []

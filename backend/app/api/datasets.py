@@ -22,7 +22,7 @@ from app.schemas.dataset import (
 )
 from app.core.config import settings
 
-router = APIRouter(prefix="/datasets", tags=["Datasets"])
+router = APIRouter()
 
 
 def generate_slug(name: str) -> str:

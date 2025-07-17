@@ -84,6 +84,13 @@ const NAVIGATION_ITEMS: NavigationItem[] = [
     icon: TrendingUp,
     path: '/dashboard/analytics',
     description: 'Analyses détaillées et métriques'
+  },
+  {
+    id: 'admin',
+    label: 'Admin',
+    icon: Shield,
+    path: '/admin',
+    description: 'Administration du site'
   }
 ];
 
@@ -276,10 +283,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <DropdownMenuItem onClick={() => handleNavigation('/settings')}>
                   <Settings className="mr-2 h-4 w-4" />
                   Paramètres
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleNavigation('/ui-demo')}>
-                  <Palette className="mr-2 h-4 w-4" />
-                  Démo UI
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">

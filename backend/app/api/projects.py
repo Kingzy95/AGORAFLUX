@@ -13,12 +13,14 @@ from app.api.dependencies import get_current_user
 from app.models.user import User
 from app.models.project import Project, ProjectStatus, ProjectVisibility
 from app.models.comment import Comment, CommentType, CommentStatus
+from app.models.permissions import ProjectRole
+from app.services.permission_service import PermissionService
 from app.schemas.project import (
     ProjectCreate, ProjectUpdate, ProjectPublic, ProjectSummary,
     ProjectList, ProjectStatusUpdate, ProjectSearch
 )
 
-router = APIRouter(prefix="/projects", tags=["Projets"])
+router = APIRouter()
 
 
 def generate_slug(title: str) -> str:
@@ -236,6 +238,10 @@ async def create_project(
     db.add(project)
     db.commit()
     db.refresh(project)
+    
+    # Créer les permissions par défaut pour le propriétaire
+    permission_service = PermissionService(db)
+    permission_service.grant_default_permissions(project)
     
     return ProjectPublic.from_orm(project)
 
@@ -576,6 +582,10 @@ async def create_project_comment(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Projet non trouvé"
         )
+    
+    # Vérifier les permissions avec le nouveau système
+    permission_service = PermissionService(db)
+    permission_service.require_permission(current_user, project, "create_comments")
     
     # Vérifier que les commentaires sont autorisés
     if not project.allow_comments:

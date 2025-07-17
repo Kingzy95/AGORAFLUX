@@ -6,6 +6,7 @@ from app.models.user import User, UserRole
 from app.models.project import Project, ProjectStatus, ProjectVisibility
 from app.models.dataset import Dataset, DatasetType, DatasetStatus
 from app.models.comment import Comment, CommentType, CommentStatus
+from app.models.permissions import ProjectPermission, ProjectRole
 
 __all__ = [
     "User",
@@ -19,4 +20,6 @@ __all__ = [
     "Comment",
     "CommentType",
     "CommentStatus",
+    "ProjectPermission",
+    "ProjectRole",
 ] 
