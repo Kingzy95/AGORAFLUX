@@ -188,7 +188,7 @@ async def delete_annotation(
     return {"message": "Annotation supprimée avec succès"}
 
 
-@router.get("/users/online", response_model=List[UserResponse])
+@router.get("/online-users", response_model=List[UserResponse])
 async def get_online_users(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -196,18 +196,42 @@ async def get_online_users(
     """
     Récupère la liste des utilisateurs en ligne
     """
-    # Récupérer tous les utilisateurs actifs (simulation)
-    users = db.query(User).filter(User.is_active == True).all()
+    from datetime import timedelta
+    
+    # Récupérer les utilisateurs actifs récemment (dernières 30 minutes)
+    recent_threshold = datetime.now() - timedelta(minutes=30)
+    
+    # Utilisateurs connectés récemment (simulation basée sur last_login)
+    online_users_query = db.query(User).filter(
+        User.is_active == True,
+        User.last_login.isnot(None),
+        User.last_login >= recent_threshold
+    ).limit(10).all()
     
     online_users = []
-    for user in users[:5]:  # Limiter à 5 pour la démo
+    for user in online_users_query:
         online_users.append({
             "user_id": str(user.id),
             "user_name": f"{user.first_name} {user.last_name}",
             "user_role": user.role.value,
-            "is_online": True,  # Pour la démo, tous sont en ligne
-            "last_seen": user.last_login
+            "is_online": True,
+            "last_seen": user.last_login.isoformat() if user.last_login else None
         })
+    
+    # Si pas assez d'utilisateurs récents, ajouter des utilisateurs simulés
+    if len(online_users) < 3:
+        recent_users = db.query(User).filter(User.is_active == True).limit(5).all()
+        for i, user in enumerate(recent_users):
+            if len(online_users) >= 5:  # Limiter à 5 utilisateurs
+                break
+            if not any(u["user_id"] == str(user.id) for u in online_users):
+                online_users.append({
+                    "user_id": str(user.id),
+                    "user_name": f"{user.first_name} {user.last_name}",
+                    "user_role": user.role.value,
+                    "is_online": i < 3,  # Les 3 premiers sont "en ligne"
+                    "last_seen": (datetime.now() - timedelta(minutes=i*5)).isoformat()
+                })
     
     return [UserResponse(**user) for user in online_users]
 
@@ -219,29 +243,203 @@ async def get_collaboration_stats(
     db: Session = Depends(get_db)
 ):
     """
-    Récupère les statistiques de collaboration
+    Récupère les statistiques de collaboration basées sur les vrais commentaires
     """
-    # Calculer les statistiques basées sur les données actuelles
-    total_annotations = len(collaboration_store["annotations"])
-    active_discussions = len([a for a in collaboration_store["annotations"] if not a.get("is_resolved", False)])
-    resolved_discussions = total_annotations - active_discussions
+    from app.models.comment import CommentStatus
     
-    # Récupérer le nombre d'utilisateurs uniques
-    user_count = db.query(User).filter(User.is_active == True).count()
+    # Récupérer les commentaires selon le projet ou tous
+    if project_id:
+        comments = db.query(Comment).filter(Comment.project_id == project_id).all()
+    else:
+        comments = db.query(Comment).all()
+    
+    # Calculer les vraies statistiques
+    total_annotations = len(comments)
+    active_discussions = len([c for c in comments if c.status in [CommentStatus.ACTIVE]])
+    resolved_discussions = len([c for c in comments if c.status == CommentStatus.HIDDEN])  # Considérer HIDDEN comme résolu
+    
+    # Récupérer le nombre d'utilisateurs uniques qui ont participé
+    unique_participants = set(c.author_id for c in comments)
+    total_participants = len(unique_participants)
+    
+    # Calculer le total de réponses (replies_count)
+    total_replies = sum(c.replies_count for c in comments)
+    
+    # Calculer le taux de participation
+    total_users = db.query(User).filter(User.is_active == True).count()
+    participation_rate = (total_participants / total_users * 100) if total_users > 0 else 0
+    
+    # Top contributeurs basés sur les vrais commentaires
+    from sqlalchemy import func
+    top_contributors_query = (
+        db.query(User.first_name, User.last_name, User.role, func.count(Comment.id).label('comment_count'))
+        .join(Comment, User.id == Comment.author_id)
+        .group_by(User.id, User.first_name, User.last_name, User.role)
+        .order_by(func.count(Comment.id).desc())
+        .limit(5)
+        .all()
+    )
+    
+    top_contributors = []
+    for contrib in top_contributors_query:
+        top_contributors.append({
+            "user_name": f"{contrib.first_name} {contrib.last_name}",
+            "contribution_count": contrib.comment_count,
+            "user_role": contrib.role.value
+        })
+    
+    # Si pas de contributeurs, données par défaut
+    if not top_contributors:
+        top_contributors = [
+            {"user_name": "Aucun contributeur", "contribution_count": 0, "user_role": "user"}
+        ]
     
     stats = {
         "total_annotations": total_annotations,
         "active_discussions": active_discussions,
         "resolved_discussions": resolved_discussions,
-        "total_participants": user_count,
-        "total_replies": len(collaboration_store["replies"]),
-        "avg_response_time": "2h 15m",
-        "participation_rate": 85.3,
-        "top_contributors": [
-            {"user_name": "Admin AgoraFlux", "contribution_count": 12, "user_role": "admin"},
-            {"user_name": "Modérateur", "contribution_count": 8, "user_role": "moderator"},
-            {"user_name": "Utilisateur", "contribution_count": 6, "user_role": "user"}
+        "total_participants": total_participants,
+        "total_replies": total_replies,
+        "avg_response_time": "2h 15m",  # Peut être calculé plus précisément plus tard
+        "participation_rate": round(participation_rate, 1),
+        "top_contributors": top_contributors
+    }
+    
+    return StatsResponse(**stats)
+
+
+@router.get("/stats/role-based", response_model=StatsResponse)
+async def get_role_based_stats(
+    project_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Récupère les statistiques de collaboration adaptées au rôle de l'utilisateur
+    """
+    from app.models.comment import CommentStatus
+    from sqlalchemy import func
+    
+    # Récupérer les commentaires selon le projet ou tous
+    if project_id:
+        comments_query = db.query(Comment).filter(Comment.project_id == project_id)
+    else:
+        comments_query = db.query(Comment)
+    
+    # Adapter les statistiques selon le rôle
+    if current_user.role.value == 'admin':
+        # Admin : Toutes les données + statistiques avancées
+        comments = comments_query.all()
+        
+        # Statistiques détaillées pour admin
+        flagged_comments = len([c for c in comments if c.status == CommentStatus.FLAGGED])
+        deleted_comments = len([c for c in comments if c.status == CommentStatus.DELETED])
+        
+        total_annotations = len(comments)
+        active_discussions = len([c for c in comments if c.status == CommentStatus.ACTIVE])
+        resolved_discussions = len([c for c in comments if c.status == CommentStatus.HIDDEN])
+        
+        # Statistiques d'administration
+        unique_participants = set(c.author_id for c in comments)
+        total_participants = len(unique_participants)
+        total_replies = sum(c.replies_count for c in comments)
+        
+        # Top contributeurs avec plus de détails
+        top_contributors_query = (
+            db.query(User.first_name, User.last_name, User.role, func.count(Comment.id).label('comment_count'))
+            .join(Comment, User.id == Comment.author_id)
+            .group_by(User.id, User.first_name, User.last_name, User.role)
+            .order_by(func.count(Comment.id).desc())
+            .limit(10)  # Plus de contributeurs pour admin
+            .all()
+        )
+        
+        top_contributors = []
+        for contrib in top_contributors_query:
+            top_contributors.append({
+                "user_name": f"{contrib.first_name} {contrib.last_name}",
+                "contribution_count": contrib.comment_count,
+                "user_role": contrib.role.value
+            })
+        
+        # Calcul du taux de participation global
+        total_users = db.query(User).filter(User.is_active == True).count()
+        participation_rate = (total_participants / total_users * 100) if total_users > 0 else 0
+        
+    elif current_user.role.value == 'moderateur':
+        # Modérateur : Données de modération + communauté
+        comments = comments_query.filter(
+            Comment.status.in_([CommentStatus.ACTIVE, CommentStatus.FLAGGED, CommentStatus.HIDDEN])
+        ).all()
+        
+        total_annotations = len(comments)
+        active_discussions = len([c for c in comments if c.status == CommentStatus.ACTIVE])
+        resolved_discussions = len([c for c in comments if c.status == CommentStatus.HIDDEN])
+        
+        unique_participants = set(c.author_id for c in comments)
+        total_participants = len(unique_participants)
+        total_replies = sum(c.replies_count for c in comments)
+        
+        # Top contributeurs (modérés)
+        top_contributors_query = (
+            db.query(User.first_name, User.last_name, User.role, func.count(Comment.id).label('comment_count'))
+            .join(Comment, User.id == Comment.author_id)
+            .filter(Comment.status == CommentStatus.ACTIVE)  # Seulement les actifs pour modérateur
+            .group_by(User.id, User.first_name, User.last_name, User.role)
+            .order_by(func.count(Comment.id).desc())
+            .limit(7)
+            .all()
+        )
+        
+        top_contributors = []
+        for contrib in top_contributors_query:
+            top_contributors.append({
+                "user_name": f"{contrib.first_name} {contrib.last_name}",
+                "contribution_count": contrib.comment_count,
+                "user_role": contrib.role.value
+            })
+        
+        # Taux de participation modéré
+        active_users = db.query(User).filter(
+            User.is_active == True,
+            User.role.in_(['admin', 'moderateur', 'utilisateur'])
+        ).count()
+        participation_rate = (total_participants / active_users * 100) if active_users > 0 else 0
+        
+    else:  # Utilisateur standard
+        # Utilisateur : Ses propres données + vue communautaire limitée
+        user_comments = comments_query.filter(Comment.author_id == current_user.id).all()
+        
+        # Statistiques personnelles
+        total_annotations = len(user_comments)
+        active_discussions = len([c for c in user_comments if c.status == CommentStatus.ACTIVE])
+        resolved_discussions = len([c for c in user_comments if c.status == CommentStatus.HIDDEN])
+        
+        # Participation communautaire (vue limitée)
+        all_active_comments = comments_query.filter(Comment.status == CommentStatus.ACTIVE).all()
+        total_participants = len(set(c.author_id for c in all_active_comments))
+        total_replies = sum(c.replies_count for c in user_comments)  # Ses propres réponses
+        
+        # Top contributeurs limité (anonymisé)
+        top_contributors = [
+            {"user_name": "Contributeur Actif", "contribution_count": len(all_active_comments) // 3, "user_role": "community"},
+            {"user_name": "Participant Régulier", "contribution_count": len(all_active_comments) // 5, "user_role": "community"},
+            {"user_name": "Nouvelle Voix", "contribution_count": len(all_active_comments) // 8, "user_role": "community"}
         ]
+        
+        # Taux de participation personnalisé
+        participation_rate = min(100.0, (total_annotations / max(1, len(all_active_comments)) * 100))
+    
+    # Retourner les statistiques adaptées
+    stats = {
+        "total_annotations": total_annotations,
+        "active_discussions": active_discussions,
+        "resolved_discussions": resolved_discussions,
+        "total_participants": total_participants,
+        "total_replies": total_replies,
+        "avg_response_time": "2h 15m",  # Peut être calculé dynamiquement
+        "participation_rate": round(participation_rate, 1),
+        "top_contributors": top_contributors
     }
     
     return StatsResponse(**stats)

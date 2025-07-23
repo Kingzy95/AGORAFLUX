@@ -259,7 +259,7 @@ const PipelineControlPanel: React.FC<PipelineControlPanelProps> = ({
               Cette opération peut prendre quelques minutes.
             </Alert>
 
-            <FormControlLabel
+            {/* <FormControlLabel
               control={
                 <Switch
                   checked={useDebugData}
@@ -281,7 +281,7 @@ const PipelineControlPanel: React.FC<PipelineControlPanelProps> = ({
                 </Box>
               }
               sx={{ alignItems: 'flex-start', mb: 2 }}
-            />
+            /> */}
 
             <Divider sx={{ my: 2 }} />
 

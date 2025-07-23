@@ -288,7 +288,7 @@ const Profile: React.FC = () => {
       </Card>
 
       {/* Informations du compte */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle>Informations du compte</CardTitle>
           <CardDescription>
@@ -324,7 +324,7 @@ const Profile: React.FC = () => {
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   );
 };

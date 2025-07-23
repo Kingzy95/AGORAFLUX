@@ -499,13 +499,19 @@ class ApiService {
   }
 
   async getOnlineUsers(): Promise<any[]> {
-    const response = await this.api.get('/collaboration/users/online');
+    const response = await this.api.get('/collaboration/online-users');
     return response.data;
   }
 
   async getCollaborationStats(projectId?: number): Promise<any> {
     const params = projectId ? { project_id: projectId } : {};
     const response = await this.api.get('/collaboration/stats', { params });
+    return response.data;
+  }
+
+  async getRoleBasedStats(projectId?: number): Promise<any> {
+    const params = projectId ? { project_id: projectId } : {};
+    const response = await this.api.get('/collaboration/stats/role-based', { params });
     return response.data;
   }
 

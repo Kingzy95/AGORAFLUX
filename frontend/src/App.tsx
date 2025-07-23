@@ -76,10 +76,14 @@ function App() {
               <Route index element={<ExportCenter />} />
             </Route>
 
-            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/notifications" element={<DashboardLayout />}>
+              <Route index element={<NotificationsPage />} />
+            </Route>
             
             {/* Routes utilitaires */}
-            <Route path="/ui-demo" element={<UIDemo />} />
+            <Route path="/ui-demo" element={<DashboardLayout />}>
+              <Route index element={<UIDemo />} />
+            </Route>
             
             {/* Routes à développer (avec layout si approprié) */}
             <Route path="/profile" element={<DashboardLayout />}>
@@ -94,8 +98,12 @@ function App() {
             </Route>
             
             {/* Routes d'erreur */}
-            <Route path="/unauthorized" element={<Unauthorized />} />
-            <Route path="*" element={<NotFound />} />
+            <Route path="/unauthorized" element={<DashboardLayout />}>
+              <Route index element={<Unauthorized />} />
+            </Route>
+            <Route path="*" element={<DashboardLayout />}>
+              <Route index element={<NotFound />} />
+            </Route>
           </Routes>
         </Router>
       </AuthProvider>

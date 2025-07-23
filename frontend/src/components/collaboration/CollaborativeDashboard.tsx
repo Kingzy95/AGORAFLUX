@@ -3,9 +3,16 @@ import { useAuth } from '../../context/AuthContext';
 import { useCollaborationData } from '../../hooks';
 import { useDataPipeline } from '../../hooks';
 import { FilterOptions } from '../../types/collaboration';
+import { useNavigate } from 'react-router-dom';
 
 const CollaborativeDashboard: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  
+  // Déterminer les permissions selon le rôle
+  const isAdmin = user?.role === 'admin';
+  const isModerator = user?.role === 'moderateur' || isAdmin;
+  const isUser = user?.role === 'utilisateur';
   
   // Utiliser le nouveau hook au lieu des données mock
   const {
@@ -17,7 +24,7 @@ const CollaborativeDashboard: React.FC = () => {
     refreshData
   } = useCollaborationData();
 
-  // Hook pour le pipeline de données
+  // Hook pour le pipeline de données (admin seulement)
   const { 
     status: pipelineStatus, 
     sources: pipelineSources,
@@ -49,10 +56,14 @@ const CollaborativeDashboard: React.FC = () => {
     return true;
   });
 
-  // Statistiques calculées
-  const activeDiscussions = filteredAnnotations.filter(a => !a.isResolved).length;
-  const resolvedDiscussions = filteredAnnotations.filter(a => a.isResolved).length;
-  const totalReplies = filteredAnnotations.reduce((sum, a) => sum + (a.thread?.totalReplies || 0), 0);
+  // Statistiques calculées basées sur les vraies données
+  const calculatedStats = {
+    activeDiscussions: stats.activeDiscussions || filteredAnnotations.filter(a => !a.isResolved).length,
+    resolvedDiscussions: stats.resolvedDiscussions || filteredAnnotations.filter(a => a.isResolved).length,
+    totalReplies: stats.totalReplies || filteredAnnotations.reduce((sum, a) => sum + (a.thread?.totalReplies || 0), 0),
+    totalAnnotations: stats.totalAnnotations || filteredAnnotations.length,
+    onlineUsers: onlineUsers.length || 3 // Valeur de fallback
+  };
 
   const handleRunPipeline = async () => {
     setIsRunningPipeline(true);
@@ -87,6 +98,42 @@ const CollaborativeDashboard: React.FC = () => {
     if (lastRun?.status === 'error') return 'Dernière exécution échouée';
     if (pipelineDatasets && pipelineDatasets.length > 0) return 'Données disponibles';
     return 'Aucune exécution';
+  };
+
+  // Handlers pour les actions selon le rôle
+  const handleNewDiscussion = () => {
+    navigate('/projects/new'); // Nouveau projet = nouvelle discussion
+    console.log('🚀 Création d\'une nouvelle discussion...');
+  };
+
+  const handleModerate = () => {
+    navigate('/dashboard/discussions'); // Page des discussions pour modération
+    console.log('🛡️ Ouverture des outils de modération...');
+  };
+
+  const handleManageUsers = () => {
+    navigate('/admin/users'); // Page admin des utilisateurs
+    console.log('👥 Accès à la gestion des utilisateurs...');
+  };
+
+  const handleAdvancedAnalytics = () => {
+    navigate('/dashboard/analytics'); // Page analytics
+    console.log('📊 Chargement des analytics avancées...');
+  };
+
+  const handleMyContributions = () => {
+    navigate('/dashboard/community'); // Page communauté pour voir ses contributions
+    console.log('📈 Consultation de vos contributions...');
+  };
+
+  const handleOpenProfile = () => {
+    navigate('/profile'); // Page de profil utilisateur
+    console.log('👤 Ouverture du profil utilisateur...');
+  };
+
+  const handleRefreshData = () => {
+    refreshData();
+    console.log('🔄 Actualisation des données en cours...');
   };
 
   if (isLoading) {
@@ -129,7 +176,7 @@ const CollaborativeDashboard: React.FC = () => {
         </p>
       </div>
 
-      {/* Pipeline Control Panel - Version Tailwind */}
+      {/* Pipeline Control Panel - Version Tailwind 
       <div className="bg-white rounded-lg shadow-sm border p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -174,7 +221,7 @@ const CollaborativeDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Statistiques */}
+        {/* Statistiques 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-gray-50 rounded-lg p-4 text-center">
             <span className="material-icons text-blue-500 text-3xl mb-2 block">folder</span>
@@ -197,7 +244,7 @@ const CollaborativeDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Sources disponibles */}
+        {/* Sources disponibles 
         {pipelineSources && pipelineSources.length > 0 && (
           <div>
             <h3 className="text-lg font-semibold text-foreground mb-3">Sources de Données Disponibles</h3>
@@ -220,7 +267,7 @@ const CollaborativeDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Dialog de configuration du pipeline */}
+      {/* Dialog de configuration du pipeline 
       {showPipelineDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
@@ -309,116 +356,229 @@ const CollaborativeDashboard: React.FC = () => {
       <section>
         <h2 className="text-xl font-bold text-foreground mb-4">Métriques Clés</h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="overflow-hidden rounded-lg bg-card p-5 shadow-sm border">
+          
+          {/* Discussions Actives - Tous les rôles */}
+          <div 
+            onClick={() => navigate('/dashboard/discussions')}
+            className="overflow-hidden rounded-lg bg-card p-5 shadow-sm border cursor-pointer hover:shadow-md transition-shadow"
+          >
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <span className="material-icons text-2xl text-blue-500">forum</span>
               </div>
               <div className="ml-3">
                 <p className="truncate text-sm font-medium text-muted-foreground">Discussions Actives</p>
-                <p className="mt-1 text-3xl font-semibold text-foreground">{stats.activeDiscussions}</p>
+                <p className="mt-1 text-3xl font-semibold text-foreground">{calculatedStats.activeDiscussions}</p>
+                <p className="text-xs text-blue-600 mt-1">Cliquez pour voir toutes</p>
               </div>
             </div>
           </div>
           
-          <div className="overflow-hidden rounded-lg bg-card p-5 shadow-sm border">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <span className="material-icons text-2xl text-green-500">check_circle</span>
-              </div>
-              <div className="ml-3">
-                <p className="truncate text-sm font-medium text-muted-foreground">Discussions Résolues</p>
-                <p className="mt-1 text-3xl font-semibold text-foreground">{stats.resolvedDiscussions}</p>
+          {/* Discussions Résolues - Modérateurs et Admins */}
+          {isModerator && (
+            <div 
+              onClick={() => navigate('/dashboard/discussions?filter=resolved')}
+              className="overflow-hidden rounded-lg bg-card p-5 shadow-sm border cursor-pointer hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <span className="material-icons text-2xl text-green-500">check_circle</span>
+                </div>
+                <div className="ml-3">
+                  <p className="truncate text-sm font-medium text-muted-foreground">Discussions Résolues</p>
+                  <p className="mt-1 text-3xl font-semibold text-foreground">{calculatedStats.resolvedDiscussions}</p>
+                  <p className="text-xs text-green-600 mt-1">Cliquez pour filtrer</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
           
-          <div className="overflow-hidden rounded-lg bg-card p-5 shadow-sm border">
+          {/* Total Réponses - Tous les rôles */}
+          <div 
+            onClick={() => navigate('/dashboard/community')}
+            className="overflow-hidden rounded-lg bg-card p-5 shadow-sm border cursor-pointer hover:shadow-md transition-shadow"
+          >
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <span className="material-icons text-2xl text-cyan-500">chat</span>
               </div>
               <div className="ml-3">
                 <p className="truncate text-sm font-medium text-muted-foreground">Total Réponses</p>
-                <p className="mt-1 text-3xl font-semibold text-foreground">{stats.totalReplies}</p>
+                <p className="mt-1 text-3xl font-semibold text-foreground">{calculatedStats.totalReplies}</p>
+                <p className="text-xs text-cyan-600 mt-1">Voir la communauté</p>
               </div>
             </div>
           </div>
           
-          <div className="overflow-hidden rounded-lg bg-card p-5 shadow-sm border">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <span className="material-icons text-2xl text-orange-500">people</span>
-              </div>
-              <div className="ml-3">
-                <p className="truncate text-sm font-medium text-muted-foreground">Utilisateurs En Ligne</p>
-                <p className="mt-1 text-3xl font-semibold text-foreground">{onlineUsers.length}</p>
+          {/* Utilisateurs En Ligne - Admins et Modérateurs */}
+          {isModerator && (
+            <div 
+              onClick={() => navigate('/dashboard/community')}
+              className="overflow-hidden rounded-lg bg-card p-5 shadow-sm border cursor-pointer hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <span className="material-icons text-2xl text-orange-500">people</span>
+                </div>
+                <div className="ml-3">
+                  <p className="truncate text-sm font-medium text-muted-foreground">Utilisateurs En Ligne</p>
+                  <p className="mt-1 text-3xl font-semibold text-foreground">{calculatedStats.onlineUsers}</p>
+                  <p className="text-xs text-orange-600 mt-1">Voir les membres</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* KPI spécifique aux utilisateurs simples */}
+          {isUser && (
+            <div 
+              onClick={handleOpenProfile}
+              className="overflow-hidden rounded-lg bg-card p-5 shadow-sm border cursor-pointer hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <span className="material-icons text-2xl text-purple-500">person</span>
+                </div>
+                <div className="ml-3">
+                  <p className="truncate text-sm font-medium text-muted-foreground">Mes Contributions</p>
+                  <p className="mt-1 text-3xl font-semibold text-foreground">{filteredAnnotations.filter(a => a.userId === user?.id?.toString()).length}</p>
+                  <p className="text-xs text-purple-600 mt-1">Voir mon profil</p>
+                </div>
+              </div>
+            </div>
+          )}
+          
         </div>
       </section>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {/* Section Engagement */}
         <section>
-          <h2 className="text-xl font-bold text-foreground mb-4">Engagement Communautaire</h2>
+          <h2 className="text-xl font-bold text-foreground mb-4">
+            {isAdmin ? 'Administration Communautaire' : 
+             isModerator ? 'Modération & Engagement' : 
+             'Mon Engagement'}
+          </h2>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {/* Utilisateurs en ligne */}
-            <div className="rounded-lg border bg-card p-6 shadow-sm">
-              <h3 className="text-base font-medium text-foreground">Utilisateurs Connectés</h3>
-              <p className="mt-1 text-3xl font-semibold text-foreground">{onlineUsers.length}</p>
-              <p className="text-sm text-muted-foreground">actuellement en ligne</p>
-              <div className="mt-4 space-y-2">
-                {onlineUsers.slice(0, 5).map(userItem => (
-                  <div key={userItem.userId} className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                      <span className="text-sm font-medium text-blue-600">
-                        {userItem.userName.charAt(0)}
-                      </span>
+            
+            {/* Utilisateurs en ligne - Admins et Modérateurs seulement */}
+            {isModerator && (
+              <div className="rounded-lg border bg-card p-6 shadow-sm">
+                <h3 className="text-base font-medium text-foreground">Utilisateurs Connectés</h3>
+                <p className="mt-1 text-3xl font-semibold text-foreground">{calculatedStats.onlineUsers}</p>
+                <p className="text-sm text-muted-foreground">actuellement en ligne</p>
+                <div className="mt-4 space-y-2">
+                  {onlineUsers.slice(0, isAdmin ? 10 : 5).map(userItem => (
+                    <div key={userItem.userId} className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+                        <span className="text-sm font-medium text-blue-600">
+                          {userItem.userName.charAt(0)}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {userItem.userName}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground">{userItem.userRole}</p>
+                          {isAdmin && (
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              userItem.userRole === 'admin' ? 'bg-red-100 text-red-700' :
+                              userItem.userRole === 'moderateur' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-blue-100 text-blue-700'
+                            }`}>
+                              {userItem.userRole}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className={`h-2 w-2 rounded-full ${userItem.isOnline ? 'bg-green-400' : 'bg-muted'}`}></div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {userItem.userName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{userItem.userRole}</p>
-                    </div>
-                    <div className={`h-2 w-2 rounded-full ${userItem.isOnline ? 'bg-green-400' : 'bg-muted'}`}></div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Activité récente */}
+            {/* Activité récente - Vue différente selon le rôle */}
             <div className="rounded-lg border bg-card p-6 shadow-sm">
-              <h3 className="text-base font-medium text-foreground">Activité Récente</h3>
-              <p className="mt-1 text-3xl font-semibold text-foreground">+{activeDiscussions}</p>
-              <p className="text-sm text-muted-foreground">nouvelles discussions</p>
+              <h3 className="text-base font-medium text-foreground">
+                {isUser ? 'Mon Activité' : 'Activité Récente'}
+              </h3>
+              <p className="mt-1 text-3xl font-semibold text-foreground">
+                +{isUser ? filteredAnnotations.filter(a => a.userId === user?.id?.toString()).length : calculatedStats.activeDiscussions}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {isUser ? 'mes contributions' : 'nouvelles discussions'}
+              </p>
+              
+              {/* Graphique différent selon le rôle */}
               <div className="mt-4 h-40">
                 <div className="grid h-full grid-flow-col gap-4 items-end px-2">
-                  <div className="bg-blue-200 rounded-t-sm w-full" style={{height: '20%'}}></div>
-                  <div className="bg-blue-200 rounded-t-sm w-full" style={{height: '50%'}}></div>
-                  <div className="bg-blue-400 rounded-t-sm w-full" style={{height: '80%'}}></div>
-                  <div className="bg-blue-200 rounded-t-sm w-full" style={{height: '30%'}}></div>
-                  <div className="bg-blue-500 rounded-t-sm w-full" style={{height: '90%'}}></div>
-                  <div className="bg-blue-200 rounded-t-sm w-full" style={{height: '40%'}}></div>
+                  {isAdmin ? (
+                    // Vue admin : Plus de détails
+                    <>
+                      <div className="bg-red-400 rounded-t-sm w-full" style={{height: '90%'}}></div>
+                      <div className="bg-yellow-400 rounded-t-sm w-full" style={{height: '70%'}}></div>
+                      <div className="bg-blue-400 rounded-t-sm w-full" style={{height: '80%'}}></div>
+                      <div className="bg-green-400 rounded-t-sm w-full" style={{height: '60%'}}></div>
+                      <div className="bg-purple-400 rounded-t-sm w-full" style={{height: '85%'}}></div>
+                      <div className="bg-indigo-400 rounded-t-sm w-full" style={{height: '75%'}}></div>
+                      <div className="bg-pink-400 rounded-t-sm w-full" style={{height: '65%'}}></div>
+                    </>
+                  ) : isModerator ? (
+                    // Vue modérateur : Données moyennes
+                    <>
+                      <div className="bg-blue-200 rounded-t-sm w-full" style={{height: '20%'}}></div>
+                      <div className="bg-blue-400 rounded-t-sm w-full" style={{height: '50%'}}></div>
+                      <div className="bg-blue-500 rounded-t-sm w-full" style={{height: '80%'}}></div>
+                      <div className="bg-blue-400 rounded-t-sm w-full" style={{height: '30%'}}></div>
+                      <div className="bg-blue-600 rounded-t-sm w-full" style={{height: '90%'}}></div>
+                      <div className="bg-blue-300 rounded-t-sm w-full" style={{height: '40%'}}></div>
+                    </>
+                  ) : (
+                    // Vue utilisateur : Ses propres données
+                    <>
+                      <div className="bg-green-200 rounded-t-sm w-full" style={{height: '30%'}}></div>
+                      <div className="bg-green-300 rounded-t-sm w-full" style={{height: '45%'}}></div>
+                      <div className="bg-green-400 rounded-t-sm w-full" style={{height: '60%'}}></div>
+                      <div className="bg-green-500 rounded-t-sm w-full" style={{height: '40%'}}></div>
+                      <div className="bg-green-600 rounded-t-sm w-full" style={{height: '70%'}}></div>
+                    </>
+                  )}
                 </div>
                 <div className="grid grid-flow-col gap-4 text-center mt-2">
-                  <span className="text-xs text-muted-foreground">Lun</span>
-                  <span className="text-xs text-muted-foreground">Mar</span>
-                  <span className="text-xs text-muted-foreground">Mer</span>
-                  <span className="text-xs text-muted-foreground">Jeu</span>
-                  <span className="text-xs text-muted-foreground">Ven</span>
-                  <span className="text-xs text-muted-foreground">Sam</span>
+                  {isAdmin ? (
+                    <>
+                      <span className="text-xs text-muted-foreground">Lun</span>
+                      <span className="text-xs text-muted-foreground">Mar</span>
+                      <span className="text-xs text-muted-foreground">Mer</span>
+                      <span className="text-xs text-muted-foreground">Jeu</span>
+                      <span className="text-xs text-muted-foreground">Ven</span>
+                      <span className="text-xs text-muted-foreground">Sam</span>
+                      <span className="text-xs text-muted-foreground">Dim</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs text-muted-foreground">S-2</span>
+                      <span className="text-xs text-muted-foreground">S-1</span>
+                      <span className="text-xs text-muted-foreground">Auj</span>
+                      <span className="text-xs text-muted-foreground">+1</span>
+                      <span className="text-xs text-muted-foreground">+2</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Section Insights */}
+        {/* Section Insights différenciée */}
         <section>
-          <h2 className="text-xl font-bold text-foreground mb-4">Insights Collaboration</h2>
+          <h2 className="text-xl font-bold text-foreground mb-4">
+            {isAdmin ? 'Analytics Avancées' : 
+             isModerator ? 'Insights Modération' : 
+             'Insights Collaboration'}
+          </h2>
           <div className="space-y-6">
             {/* Top discussions */}
             <div className="rounded-lg border bg-card p-6 shadow-sm">
@@ -492,12 +652,19 @@ const CollaborativeDashboard: React.FC = () => {
         </section>
       </div>
 
-      {/* Actions de collaboration */}
+      {/* Actions de collaboration différenciées selon le rôle */}
       <section>
-        <h2 className="text-xl font-bold text-foreground mb-4">Actions Collaboratives</h2>
+        <h2 className="text-xl font-bold text-foreground mb-4">
+          {isAdmin ? 'Actions Administratives' : 
+           isModerator ? 'Actions de Modération' : 
+           'Actions Collaboratives'}
+        </h2>
+        
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          
+          {/* Actions communes à tous */}
           <button 
-            onClick={() => console.log('Nouvelle discussion')}
+            onClick={handleNewDiscussion}
             className="p-4 rounded-lg border bg-card shadow-sm hover:bg-accent transition-colors text-left"
           >
             <div className="flex items-center gap-3 mb-2">
@@ -509,21 +676,72 @@ const CollaborativeDashboard: React.FC = () => {
             </p>
           </button>
 
-          <button 
-            onClick={() => console.log('Modérer discussions')}
-            className="p-4 rounded-lg border bg-card shadow-sm hover:bg-accent transition-colors text-left"
-          >
-            <div className="flex items-center gap-3 mb-2">
-              <span className="material-icons text-green-500">verified_user</span>
-              <span className="font-medium text-foreground">Modérer</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Gérez et modérez les discussions actives
-            </p>
-          </button>
+          {/* Actions pour modérateurs et admins */}
+          {isModerator && (
+            <button 
+              onClick={handleModerate}
+              className="p-4 rounded-lg border bg-card shadow-sm hover:bg-accent transition-colors text-left"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <span className="material-icons text-yellow-500">verified_user</span>
+                <span className="font-medium text-foreground">Modérer</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Gérez et modérez les discussions actives
+              </p>
+            </button>
+          )}
 
+          {/* Actions pour admins seulement */}
+          {isAdmin && (
+            <>
+              <button 
+                onClick={handleManageUsers}
+                className="p-4 rounded-lg border bg-card shadow-sm hover:bg-accent transition-colors text-left"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="material-icons text-red-500">admin_panel_settings</span>
+                  <span className="font-medium text-foreground">Gestion Utilisateurs</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Administrer les utilisateurs et leurs permissions
+                </p>
+              </button>
+
+              <button 
+                onClick={handleAdvancedAnalytics}
+                className="p-4 rounded-lg border bg-card shadow-sm hover:bg-accent transition-colors text-left"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="material-icons text-indigo-500">analytics</span>
+                  <span className="font-medium text-foreground">Analytics Avancées</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Accédez aux statistiques détaillées de la plateforme
+                </p>
+              </button>
+            </>
+          )}
+
+          {/* Action pour utilisateurs simples */}
+          {isUser && (
+            <button 
+              onClick={handleMyContributions}
+              className="p-4 rounded-lg border bg-card shadow-sm hover:bg-accent transition-colors text-left"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <span className="material-icons text-green-500">person</span>
+                <span className="font-medium text-foreground">Mes Contributions</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Consultez et gérez vos propres contributions
+              </p>
+            </button>
+          )}
+
+          {/* Action commune : Actualiser */}
           <button 
-            onClick={refreshData}
+            onClick={handleRefreshData}
             className="p-4 rounded-lg border bg-card shadow-sm hover:bg-accent transition-colors text-left"
           >
             <div className="flex items-center gap-3 mb-2">
@@ -534,6 +752,43 @@ const CollaborativeDashboard: React.FC = () => {
               Rechargez les dernières données de collaboration
             </p>
           </button>
+        </div>
+
+        {/* Message d'information selon le rôle */}
+        <div className={`mt-6 p-4 rounded-lg border-l-4 ${
+          isAdmin ? 'border-red-500 bg-red-50' :
+          isModerator ? 'border-yellow-500 bg-yellow-50' :
+          'border-blue-500 bg-blue-50'
+        }`}>
+          <div className="flex items-center gap-3">
+            <span className={`material-icons ${
+              isAdmin ? 'text-red-600' :
+              isModerator ? 'text-yellow-600' :
+              'text-blue-600'
+            }`}>
+              {isAdmin ? 'security' : isModerator ? 'shield' : 'info'}
+            </span>
+            <div>
+              <p className={`font-medium ${
+                isAdmin ? 'text-red-800' :
+                isModerator ? 'text-yellow-800' :
+                'text-blue-800'
+              }`}>
+                {isAdmin ? 'Mode Administrateur' :
+                 isModerator ? 'Mode Modérateur' :
+                 'Mode Collaboration'}
+              </p>
+              <p className={`text-sm ${
+                isAdmin ? 'text-red-700' :
+                isModerator ? 'text-yellow-700' :
+                'text-blue-700'
+              }`}>
+                {isAdmin ? 'Vous avez accès à tous les outils d\'administration et de gestion de la plateforme.' :
+                 isModerator ? 'Vous pouvez modérer les discussions et accéder aux outils de gestion communautaire.' :
+                 'Vous participez activement à la collaboration citoyenne. Vos contributions comptent !'}
+              </p>
+            </div>
+          </div>
         </div>
       </section>
     </div>

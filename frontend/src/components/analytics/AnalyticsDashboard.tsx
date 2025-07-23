@@ -482,7 +482,7 @@ const AnalyticsDashboard: React.FC = () => {
                 </p>
               </div>
 
-              <div className="flex items-start gap-3 mb-4">
+              {/* <div className="flex items-start gap-3 mb-4">
                 <input
                   type="checkbox"
                   id="debugData"
@@ -501,7 +501,7 @@ const AnalyticsDashboard: React.FC = () => {
                     }
                   </p>
                 </div>
-              </div>
+              </div> */}
 
               <div className="border-t pt-4">
                 <h4 className="font-medium text-foreground mb-3">Ce qui va être traité :</h4>

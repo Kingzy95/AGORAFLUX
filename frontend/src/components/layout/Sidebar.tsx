@@ -280,10 +280,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <User className="mr-2 h-4 w-4" />
                   Profil
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleNavigation('/settings')}>
+                {/* <DropdownMenuItem onClick={() => handleNavigation('/settings')}>
                   <Settings className="mr-2 h-4 w-4" />
                   Paramètres
-                </DropdownMenuItem>
+                </DropdownMenuItem> */}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600">
                   <LogOut className="mr-2 h-4 w-4" />
