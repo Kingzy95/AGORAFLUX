@@ -1,0 +1,641 @@
+"""Tests à fort impact pour améliorer significativement la couverture"""
+import pytest
+from unittest.mock import Mock, patch, MagicMock, call
+from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
+from fastapi import HTTPException, status
+from fastapi.testclient import TestClient
+from app.main import app
+
+
+class TestDashboardHighImpact:
+    """Tests à fort impact pour le module dashboard (16% actuellement)"""
+    
+    @patch('app.api.dashboard.get_db')
+    @patch('app.api.dashboard.get_current_user')
+    def test_personal_dashboard_calculation_logic(self, mock_get_user, mock_get_db):
+        """Test de la logique de calcul du dashboard personnel"""
+        # Mock user
+        mock_user = Mock()
+        mock_user.id = 1
+        mock_user.email = "test@example.com"
+        mock_user.username = "testuser"
+        mock_user.first_name = "Test"
+        mock_user.last_name = "User"
+        mock_get_user.return_value = mock_user
+        
+        # Mock database session
+        mock_session = Mock()
+        mock_get_db.return_value.__enter__.return_value = mock_session
+        mock_get_db.return_value.__exit__.return_value = None
+        
+        # Mock queries pour les statistiques
+        mock_session.query.return_value.filter.return_value.count.side_effect = [5, 3, 12, 2]  # projets, datasets, commentaires, collaborations
+        mock_session.query.return_value.filter.return_value.scalar.return_value = 100  # total_members
+        mock_session.query.return_value.filter.return_value.all.return_value = []  # recent_activity
+        
+        # Calculer le classement (mock query complexe)
+        mock_session.execute.return_value.scalar.return_value = 5  # ranking
+        
+        from app.api.dashboard import get_personal_dashboard_stats
+        
+        # Appeler la fonction avec mocks
+        result = get_personal_dashboard_stats(mock_session, mock_user)
+        
+        # Vérifier le format de la réponse
+        assert "profile" in result
+        assert "community" in result
+        assert "recent_activity" in result
+        assert "suggestions" in result
+        
+        # Vérifier les statistiques calculées
+        assert result["profile"]["stats"]["total_projects"] == 5
+        assert result["profile"]["stats"]["total_datasets"] == 3
+        assert result["profile"]["stats"]["total_comments"] == 12
+
+    @patch('app.api.dashboard.get_db')
+    @patch('app.api.dashboard.get_current_user')
+    def test_dashboard_ranking_calculation(self, mock_get_user, mock_get_db):
+        """Test du calcul de classement dans le dashboard"""
+        mock_user = Mock()
+        mock_user.id = 1
+        mock_get_user.return_value = mock_user
+        
+        mock_session = Mock()
+        mock_get_db.return_value.__enter__.return_value = mock_session
+        
+        # Mock pour le calcul de classement
+        mock_session.execute.return_value.scalar.side_effect = [5, 100]  # ranking, total_users
+        mock_session.query.return_value.filter.return_value.count.return_value = 0
+        mock_session.query.return_value.filter.return_value.all.return_value = []
+        
+        from app.api.dashboard import calculate_user_ranking, calculate_percentile
+        
+        ranking = calculate_user_ranking(mock_session, mock_user.id)
+        assert ranking == 5
+        
+        percentile = calculate_percentile(ranking, 100)
+        assert percentile == 95.0  # Top 5%
+
+    @patch('app.api.dashboard.get_db')
+    @patch('app.api.dashboard.get_current_user')
+    def test_dashboard_suggestions_generation(self, mock_get_user, mock_get_db):
+        """Test de génération de suggestions personnalisées"""
+        mock_user = Mock()
+        mock_user.id = 1
+        mock_get_user.return_value = mock_user
+        
+        mock_session = Mock()
+        mock_get_db.return_value.__enter__.return_value = mock_session
+        
+        # Mock pour les statistiques utilisateur
+        mock_session.query.return_value.filter.return_value.count.side_effect = [2, 1, 5]  # peu de projets, datasets, commentaires
+        
+        from app.api.dashboard import generate_suggestions
+        
+        suggestions = generate_suggestions(mock_session, mock_user)
+        
+        assert len(suggestions) > 0
+        assert any("projet" in s["text"] for s in suggestions)  # Suggestion de créer des projets
+
+    def test_dashboard_activity_timeline_processing(self):
+        """Test de traitement de la timeline d'activité"""
+        from app.api.dashboard import process_activity_timeline
+        
+        # Mock des activités récentes
+        mock_activities = [
+            Mock(type="project_created", created_at=datetime.utcnow() - timedelta(days=1)),
+            Mock(type="comment_added", created_at=datetime.utcnow() - timedelta(days=2)),
+            Mock(type="dataset_uploaded", created_at=datetime.utcnow() - timedelta(days=3))
+        ]
+        
+        timeline = process_activity_timeline(mock_activities)
+        
+        assert len(timeline) == 3
+        assert timeline[0]["type"] == "project_created"  # Plus récent en premier
+
+
+class TestAuthServiceHighImpact:
+    """Tests à fort impact pour le service d'authentification (17% actuellement)"""
+    
+    def test_auth_service_email_validation_logic(self):
+        """Test de la logique de validation d'email"""
+        from app.services.auth_service import AuthService
+        
+        service = AuthService()
+        
+        # Tests détaillés de validation d'email
+        valid_emails = [
+            "user@example.com",
+            "test.email+tag@domain.co.uk",
+            "firstname.lastname@company.org"
+        ]
+        
+        invalid_emails = [
+            "notanemail",
+            "user@",
+            "@domain.com",
+            "user name@domain.com",
+            "user@domain",
+            ""
+        ]
+        
+        for email in valid_emails:
+            assert service.validate_email_format(email), f"Email {email} should be valid"
+        
+        for email in invalid_emails:
+            assert not service.validate_email_format(email), f"Email {email} should be invalid"
+
+    def test_auth_service_password_strength_validation(self):
+        """Test de la logique de validation de force de mot de passe"""
+        from app.services.auth_service import AuthService
+        
+        service = AuthService()
+        
+        # Tests de mots de passe forts
+        strong_passwords = [
+            "StrongPassword123!",
+            "ComplexP@ssw0rd",
+            "MySecure2024Password"
+        ]
+        
+        # Tests de mots de passe faibles
+        weak_passwords = [
+            "123",
+            "password",
+            "12345678",
+            "abcdefgh",
+            "PASSWORD",
+            "Pass123"  # Trop court
+        ]
+        
+        for password in strong_passwords:
+            assert service.validate_password_strength(password), f"Password {password} should be strong"
+        
+        for password in weak_passwords:
+            assert not service.validate_password_strength(password), f"Password {password} should be weak"
+
+    def test_auth_service_username_validation(self):
+        """Test de validation de nom d'utilisateur"""
+        from app.services.auth_service import AuthService
+        
+        service = AuthService()
+        
+        valid_usernames = ["user123", "john_doe", "admin", "test-user", "validuser"]
+        invalid_usernames = ["", "a", "ab", "user name", "user@name", "a" * 51]  # Trop long
+        
+        for username in valid_usernames:
+            assert service.validate_username(username), f"Username {username} should be valid"
+        
+        for username in invalid_usernames:
+            assert not service.validate_username(username), f"Username {username} should be invalid"
+
+    @patch('app.services.auth_service.datetime')
+    def test_auth_service_token_expiration_logic(self, mock_datetime):
+        """Test de la logique d'expiration de token"""
+        from app.services.auth_service import AuthService
+        
+        service = AuthService()
+        
+        # Mock datetime pour contrôler le temps
+        now = datetime(2024, 1, 1, 12, 0, 0)
+        mock_datetime.utcnow.return_value = now
+        
+        # Test token non expiré
+        future_time = now + timedelta(hours=1)
+        assert not service.is_token_expired(future_time)
+        
+        # Test token expiré
+        past_time = now - timedelta(hours=1)
+        assert service.is_token_expired(past_time)
+        
+        # Test token exactement à l'expiration
+        assert service.is_token_expired(now)
+
+    def test_auth_service_data_sanitization(self):
+        """Test de nettoyage des données utilisateur"""
+        from app.services.auth_service import AuthService
+        
+        service = AuthService()
+        
+        dirty_data = {
+            "email": "  TEST@EXAMPLE.COM  ",
+            "username": "  TestUser123  ",
+            "first_name": "  John  ",
+            "last_name": "  Doe  "
+        }
+        
+        clean_data = service.sanitize_user_data(dirty_data)
+        
+        assert clean_data["email"] == "test@example.com"
+        assert clean_data["username"] == "testuser123"
+        assert clean_data["first_name"] == "John"
+        assert clean_data["last_name"] == "Doe"
+
+    def test_auth_service_user_status_checking(self):
+        """Test de vérification du statut utilisateur"""
+        from app.services.auth_service import AuthService
+        
+        service = AuthService()
+        
+        # Utilisateur actif
+        active_user = Mock()
+        active_user.is_active = True
+        active_user.is_deleted = False
+        assert service.check_user_status(active_user)
+        
+        # Utilisateur inactif
+        inactive_user = Mock()
+        inactive_user.is_active = False
+        inactive_user.is_deleted = False
+        assert not service.check_user_status(inactive_user)
+        
+        # Utilisateur supprimé
+        deleted_user = Mock()
+        deleted_user.is_active = True
+        deleted_user.is_deleted = True
+        assert not service.check_user_status(deleted_user)
+
+
+class TestPermissionServiceHighImpact:
+    """Tests à fort impact pour le service de permissions (20% actuellement)"""
+    
+    def test_permission_service_access_control_logic(self):
+        """Test de la logique de contrôle d'accès"""
+        from app.services.permission_service import PermissionService
+        from app.models.user import UserRole
+        
+        service = PermissionService()
+        
+        # Test accès admin (toujours autorisé)
+        admin_user = Mock()
+        admin_user.role = UserRole.ADMIN
+        admin_user.is_active = True
+        
+        assert service.check_permission(admin_user, "any_permission")
+        assert service.can_moderate(admin_user)
+        assert service.can_admin(admin_user)
+        
+        # Test accès modérateur
+        moderator_user = Mock()
+        moderator_user.role = UserRole.MODERATEUR
+        moderator_user.is_active = True
+        
+        assert service.can_moderate(moderator_user)
+        assert not service.can_admin(moderator_user)
+        
+        # Test utilisateur normal
+        normal_user = Mock()
+        normal_user.role = UserRole.USER
+        normal_user.is_active = True
+        
+        assert not service.can_moderate(normal_user)
+        assert not service.can_admin(normal_user)
+
+    def test_permission_service_project_access_logic(self):
+        """Test de la logique d'accès aux projets"""
+        from app.services.permission_service import PermissionService
+        from app.models.user import UserRole
+        
+        service = PermissionService()
+        
+        # Projet public - accessible à tous
+        user = Mock()
+        user.id = 2
+        user.role = UserRole.USER
+        
+        public_project = Mock()
+        public_project.visibility = "public"
+        public_project.owner_id = 1
+        
+        assert service.can_access_project(user, public_project)
+        
+        # Projet privé - accessible au propriétaire
+        private_project = Mock()
+        private_project.visibility = "private"
+        private_project.owner_id = 2  # Même ID que l'utilisateur
+        
+        assert service.can_access_project(user, private_project)
+        
+        # Projet privé - non accessible aux autres
+        other_private_project = Mock()
+        other_private_project.visibility = "private"
+        other_private_project.owner_id = 1  # Différent de l'utilisateur
+        
+        assert not service.can_access_project(user, other_private_project)
+
+    def test_permission_service_project_modification_rights(self):
+        """Test des droits de modification de projet"""
+        from app.services.permission_service import PermissionService
+        from app.models.user import UserRole
+        
+        service = PermissionService()
+        
+        project = Mock()
+        project.owner_id = 1
+        
+        # Propriétaire peut modifier
+        owner = Mock()
+        owner.id = 1
+        owner.role = UserRole.USER
+        assert service.can_edit_project(owner, project)
+        assert service.can_delete_project(owner, project)
+        
+        # Admin peut modifier
+        admin = Mock()
+        admin.id = 2
+        admin.role = UserRole.ADMIN
+        assert service.can_edit_project(admin, project)
+        assert service.can_delete_project(admin, project)
+        
+        # Utilisateur normal ne peut pas modifier
+        normal_user = Mock()
+        normal_user.id = 3
+        normal_user.role = UserRole.USER
+        assert not service.can_edit_project(normal_user, project)
+        assert not service.can_delete_project(normal_user, project)
+
+    def test_permission_service_comment_moderation_rights(self):
+        """Test des droits de modération de commentaires"""
+        from app.services.permission_service import PermissionService
+        from app.models.user import UserRole
+        
+        service = PermissionService()
+        
+        comment = Mock()
+        comment.author_id = 1
+        
+        # Auteur peut modérer son commentaire
+        author = Mock()
+        author.id = 1
+        author.role = UserRole.USER
+        assert service.can_moderate_comment(author, comment)
+        
+        # Modérateur peut modérer tout commentaire
+        moderator = Mock()
+        moderator.id = 2
+        moderator.role = UserRole.MODERATEUR
+        assert service.can_moderate_comment(moderator, comment)
+        
+        # Admin peut modérer tout commentaire
+        admin = Mock()
+        admin.id = 3
+        admin.role = UserRole.ADMIN
+        assert service.can_moderate_comment(admin, comment)
+        
+        # Utilisateur normal ne peut pas modérer les commentaires des autres
+        other_user = Mock()
+        other_user.id = 4
+        other_user.role = UserRole.USER
+        assert not service.can_moderate_comment(other_user, comment)
+
+    def test_permission_service_role_based_permissions(self):
+        """Test des permissions basées sur les rôles"""
+        from app.services.permission_service import PermissionService
+        from app.models.user import UserRole
+        
+        service = PermissionService()
+        
+        # Test utilisateur admin
+        admin_user = Mock()
+        admin_user.role = UserRole.ADMIN
+        admin_permissions = service.get_user_permissions(admin_user)
+        
+        assert "admin" in admin_permissions
+        assert "moderate" in admin_permissions
+        assert "read" in admin_permissions
+        assert "write" in admin_permissions
+        
+        # Test utilisateur modérateur
+        moderator_user = Mock()
+        moderator_user.role = UserRole.MODERATEUR
+        moderator_permissions = service.get_user_permissions(moderator_user)
+        
+        assert "moderate" in moderator_permissions
+        assert "read" in moderator_permissions
+        assert "write" in moderator_permissions
+        assert "admin" not in moderator_permissions
+        
+        # Test utilisateur normal
+        normal_user = Mock()
+        normal_user.role = UserRole.USER
+        user_permissions = service.get_user_permissions(normal_user)
+        
+        assert "read" in user_permissions
+        assert "write" in user_permissions
+        assert "moderate" not in user_permissions
+        assert "admin" not in user_permissions
+
+    def test_permission_service_role_verification(self):
+        """Test de vérification des rôles"""
+        from app.services.permission_service import PermissionService
+        from app.models.user import UserRole
+        
+        service = PermissionService()
+        
+        admin_user = Mock()
+        admin_user.role = UserRole.ADMIN
+        
+        # Test correspondance de rôle
+        assert service.has_role_permission(admin_user, [UserRole.ADMIN])
+        assert service.has_role_permission(admin_user, [UserRole.ADMIN, UserRole.MODERATEUR])
+        
+        # Test non-correspondance de rôle
+        assert not service.has_role_permission(admin_user, [UserRole.USER])
+        
+        moderator_user = Mock()
+        moderator_user.role = UserRole.MODERATEUR
+        
+        assert service.has_role_permission(moderator_user, [UserRole.MODERATEUR])
+        assert not service.has_role_permission(moderator_user, [UserRole.ADMIN])
+
+
+class TestSecurityHighImpact:
+    """Tests à fort impact pour le module de sécurité (61% actuellement)"""
+    
+    @patch('app.core.security.jwt.encode')
+    @patch('app.core.security.jwt.decode')
+    def test_security_jwt_token_lifecycle(self, mock_decode, mock_encode):
+        """Test du cycle de vie complet des tokens JWT"""
+        from app.core.security import create_access_token, verify_token, create_refresh_token
+        
+        # Mock JWT operations
+        mock_encode.return_value = "encoded.jwt.token"
+        mock_decode.return_value = {"sub": "test@example.com", "user_id": 1}
+        
+        # Test création de token d'accès
+        user_data = {"sub": "test@example.com", "user_id": 1}
+        access_token = create_access_token(user_data)
+        assert access_token == "encoded.jwt.token"
+        
+        # Test création de token de rafraîchissement
+        refresh_token = create_refresh_token(user_data)
+        assert refresh_token == "encoded.jwt.token"
+        
+        # Test vérification de token
+        decoded_data = verify_token("encoded.jwt.token")
+        assert decoded_data["sub"] == "test@example.com"
+        assert decoded_data["user_id"] == 1
+
+    @patch('app.core.security.pwd_context.hash')
+    @patch('app.core.security.pwd_context.verify')
+    def test_security_password_operations(self, mock_verify, mock_hash):
+        """Test des opérations de mot de passe"""
+        from app.core.security import get_password_hash, verify_password
+        
+        # Mock password operations
+        mock_hash.return_value = "hashed_password_string"
+        mock_verify.return_value = True
+        
+        # Test hachage
+        password = "my_secure_password"
+        hashed = get_password_hash(password)
+        assert hashed == "hashed_password_string"
+        mock_hash.assert_called_once_with(password)
+        
+        # Test vérification
+        is_valid = verify_password(password, hashed)
+        assert is_valid is True
+        mock_verify.assert_called_once_with(password, hashed)
+
+    def test_security_service_initialization_and_methods(self):
+        """Test d'initialisation et méthodes du service de sécurité"""
+        from app.core.security import SecurityService
+        
+        service = SecurityService()
+        
+        # Test que toutes les méthodes requises existent
+        assert hasattr(service, 'hash_password')
+        assert hasattr(service, 'verify_password')
+        assert hasattr(service, 'create_access_token')
+        assert hasattr(service, 'verify_token')
+        assert hasattr(service, 'create_refresh_token')
+        assert hasattr(service, 'generate_reset_token')
+
+    @patch('app.core.security.secrets.token_urlsafe')
+    def test_security_reset_token_generation(self, mock_token_urlsafe):
+        """Test de génération de token de reset"""
+        from app.core.security import SecurityService
+        
+        mock_token_urlsafe.return_value = "secure_reset_token"
+        
+        service = SecurityService()
+        reset_token = service.generate_reset_token()
+        
+        assert reset_token == "secure_reset_token"
+        mock_token_urlsafe.assert_called_once()
+
+    def test_security_token_expiration_checking(self):
+        """Test de vérification d'expiration de token"""
+        from app.core.security import SecurityService
+        
+        service = SecurityService()
+        
+        # Token futur (valide)
+        future_time = datetime.utcnow() + timedelta(hours=1)
+        assert not service.is_token_expired(future_time)
+        
+        # Token passé (expiré)
+        past_time = datetime.utcnow() - timedelta(hours=1)
+        assert service.is_token_expired(past_time)
+        
+        # Token présent (limite)
+        now = datetime.utcnow()
+        assert service.is_token_expired(now)
+
+
+class TestDatabaseHighImpact:
+    """Tests à fort impact pour le module database (37% actuellement)"""
+    
+    @patch('app.core.database.create_engine')
+    def test_database_engine_creation_and_configuration(self, mock_create_engine):
+        """Test de création et configuration du moteur de base de données"""
+        from app.core.database import Database
+        
+        mock_engine = Mock()
+        mock_create_engine.return_value = mock_engine
+        
+        # Test avec différentes configurations
+        db = Database()
+        
+        # Vérifier que create_engine a été appelé avec les bons paramètres
+        mock_create_engine.assert_called_once()
+        call_args = mock_create_engine.call_args
+        assert call_args is not None
+
+    @patch('app.core.database.sessionmaker')
+    @patch('app.core.database.create_engine')
+    def test_database_session_management(self, mock_create_engine, mock_sessionmaker):
+        """Test de gestion des sessions de base de données"""
+        from app.core.database import Database
+        
+        mock_engine = Mock()
+        mock_session_class = Mock()
+        mock_session_instance = Mock()
+        
+        mock_create_engine.return_value = mock_engine
+        mock_sessionmaker.return_value = mock_session_class
+        mock_session_class.return_value = mock_session_instance
+        
+        db = Database()
+        
+        # Test get_session
+        session = db.get_session()
+        assert session == mock_session_instance
+        
+        # Test que sessionmaker a été configuré correctement
+        mock_sessionmaker.assert_called_once_with(bind=mock_engine)
+
+    @patch('app.core.database.Base')
+    @patch('app.core.database.create_engine')
+    def test_database_table_operations(self, mock_create_engine, mock_base):
+        """Test des opérations sur les tables"""
+        from app.core.database import Database
+        
+        mock_engine = Mock()
+        mock_create_engine.return_value = mock_engine
+        
+        db = Database()
+        
+        # Test create_tables
+        db.create_tables()
+        mock_base.metadata.create_all.assert_called_once_with(bind=mock_engine)
+        
+        # Test drop_tables
+        db.drop_tables()
+        mock_base.metadata.drop_all.assert_called_once_with(bind=mock_engine)
+
+    @patch('app.core.database.create_engine')
+    def test_database_connection_lifecycle(self, mock_create_engine):
+        """Test du cycle de vie de connexion à la base de données"""
+        from app.core.database import Database
+        
+        mock_engine = Mock()
+        mock_create_engine.return_value = mock_engine
+        
+        db = Database()
+        
+        # Test connect
+        db.connect()
+        # connect() peut faire des opérations sur l'engine
+        
+        # Test disconnect
+        db.disconnect()
+        mock_engine.dispose.assert_called_once()
+
+    def test_database_dependency_generator(self):
+        """Test du générateur de dépendance de base de données"""
+        from app.core.database import get_db
+        
+        # Test que get_db est un générateur
+        db_generator = get_db()
+        assert hasattr(db_generator, '__next__')
+        
+        # Test du contexte
+        try:
+            session = next(db_generator)
+            # La session devrait être disponible
+            assert session is not None
+        except StopIteration:
+            # Normal si la base de données n'est pas disponible en test
+            pass 

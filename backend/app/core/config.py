@@ -5,7 +5,7 @@ Gestion des variables d'environnement avec Pydantic Settings
 
 from typing import List, Optional
 from pydantic_settings import BaseSettings
-from pydantic import validator
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # Configuration serveur
     HOST: str = "0.0.0.0"
     PORT: int = 8000
-    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1", "0.0.0.0"]
+    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1", "0.0.0.0", "testclient", "testserver"]
     
     # Configuration CORS
     CORS_ORIGINS: List[str] = [
@@ -63,7 +63,8 @@ class Settings(BaseSettings):
     MAX_CHART_WIDTH: int = 1920
     MAX_CHART_HEIGHT: int = 1080
     
-    @validator("ENVIRONMENT")
+    @field_validator("ENVIRONMENT")
+    @classmethod
     def validate_environment(cls, v):
         """Valide l'environnement"""
         allowed = ["development", "testing", "staging", "production"]
@@ -71,7 +72,8 @@ class Settings(BaseSettings):
             raise ValueError(f"ENVIRONMENT doit être un de: {allowed}")
         return v
     
-    @validator("DATABASE_URL")
+    @field_validator("DATABASE_URL")
+    @classmethod
     def validate_database_url(cls, v):
         """Valide l'URL de la base de données"""
         if not v.startswith(("postgresql://", "sqlite:///")):

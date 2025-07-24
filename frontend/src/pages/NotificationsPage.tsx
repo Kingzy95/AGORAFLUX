@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Check, CheckCheck, Trash2, Filter, Search, Clock, User, FileText, MessageSquare, Settings } from 'lucide-react';
 import { useNotifications, Notification } from '../hooks/useNotifications';
+import { useAuth } from '../context/AuthContext';
 
 const NotificationsPage: React.FC = () => {
+  const { user } = useAuth();
   const {
     notifications,
     unreadCount,
@@ -37,6 +39,25 @@ const NotificationsPage: React.FC = () => {
     return matchesFilter && matchesType && matchesSearch;
   });
 
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) {
+      return 'À l\'instant';
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `Il y a ${minutes} min`;
+    } else if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `Il y a ${hours}h`;
+    } else {
+      const days = Math.floor(diffInSeconds / 86400);
+      return `Il y a ${days}j`;
+    }
+  };
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'comment':
@@ -57,34 +78,15 @@ const NotificationsPage: React.FC = () => {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'urgent':
-        return 'border-l-red-500 bg-red-50';
+        return 'border-l-red-500';
       case 'high':
-        return 'border-l-orange-500 bg-orange-50';
+        return 'border-l-orange-500';
       case 'normal':
-        return 'border-l-blue-500 bg-blue-50';
+        return 'border-l-blue-500';
       case 'low':
-        return 'border-l-gray-500 bg-gray-50';
+        return 'border-l-gray-500';
       default:
-        return 'border-l-gray-500 bg-gray-50';
-    }
-  };
-
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (diffInSeconds < 60) {
-      return 'À l\'instant';
-    } else if (diffInSeconds < 3600) {
-      const minutes = Math.floor(diffInSeconds / 60);
-      return `Il y a ${minutes} min`;
-    } else if (diffInSeconds < 86400) {
-      const hours = Math.floor(diffInSeconds / 3600);
-      return `Il y a ${hours}h`;
-    } else {
-      const days = Math.floor(diffInSeconds / 86400);
-      return `Il y a ${days}j`;
+        return 'border-l-gray-500';
     }
   };
 
@@ -137,6 +139,43 @@ const NotificationsPage: React.FC = () => {
     }
   };
 
+  const handleDeleteTestNotifications = async () => {
+    // Vérifier les permissions
+    if (!user || (user.role !== 'admin' && user.role !== 'moderateur')) {
+      alert('Accès refusé : seuls les administrateurs et modérateurs peuvent supprimer les notifications de test');
+      return;
+    }
+
+    const confirmDelete = window.confirm('Êtes-vous sûr de vouloir supprimer toutes les notifications de test ?');
+    if (!confirmDelete) return;
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8000/api/v1/notifications/test-notifications', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`${result.removed_count} notification(s) de test supprimée(s)`);
+        // Recharger les notifications
+        await loadNotifications();
+      } else {
+        const error = await response.json();
+        alert(`Erreur: ${error.detail || 'Impossible de supprimer les notifications de test'}`);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la suppression des notifications de test:', error);
+      alert('Erreur lors de la suppression des notifications de test');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -173,6 +212,16 @@ const NotificationsPage: React.FC = () => {
                 >
                   <CheckCheck className="h-4 w-4" />
                   Tout marquer comme lu
+                </button>
+              )}
+              {user && (user.role === 'admin' || user.role === 'moderateur') && (
+                <button
+                  onClick={handleDeleteTestNotifications}
+                  disabled={loading}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Supprimer les notifications de test
                 </button>
               )}
             </div>

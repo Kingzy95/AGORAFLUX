@@ -181,6 +181,15 @@ async def create_notification(
     priority: str = "normal"
 ):
     """Créer et envoyer une notification"""
+    
+    # Prévenir la création de notifications de test (sauf si explicitement autorisé)
+    test_keywords = ["test", "Test", "TEST", "demo", "Demo", "DEMO", "exemple", "Exemple"]
+    if any(keyword in title or keyword in message for keyword in test_keywords):
+        # Permettre uniquement si c'est explicitement marqué comme autorisé
+        if not data or not data.get("allow_test_notification", False):
+            print(f"⚠️ Tentative de création d'une notification de test bloquée: {title}")
+            return None
+    
     notification = {
         "id": str(uuid.uuid4()),
         "type": type,
@@ -198,6 +207,25 @@ async def create_notification(
     
     await notification_manager.send_notification(notification)
     return notification
+
+# Fonction pour nettoyer les notifications de test
+def clean_test_notifications():
+    """Supprime toutes les notifications de test"""
+    test_keywords = ["test", "Test", "TEST", "demo", "Demo", "DEMO", "exemple", "Exemple"]
+    
+    initial_count = len(notification_manager.notifications_store)
+    
+    # Filtrer les notifications qui ne contiennent pas de mots-clés de test
+    notification_manager.notifications_store = [
+        notif for notif in notification_manager.notifications_store
+        if not any(keyword in notif.get("title", "") or keyword in notif.get("message", "") 
+                  for keyword in test_keywords)
+    ]
+    
+    final_count = len(notification_manager.notifications_store)
+    removed_count = initial_count - final_count
+    
+    return removed_count
 
 # WebSocket endpoint
 @router.websocket("/ws/{user_id}")
@@ -305,6 +333,98 @@ async def delete_notification(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="Notification non trouvée"
     )
+
+@router.get("/admin/all")
+async def get_all_notifications_admin(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Lister toutes les notifications du système (pour debug/admin)
+    Réservé aux administrateurs et modérateurs
+    """
+    # Vérifier les permissions
+    if current_user.role not in ["admin", "moderateur"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès refusé : seuls les administrateurs et modérateurs peuvent voir toutes les notifications"
+        )
+    
+    notifications = notification_manager.notifications_store
+    
+    # Analyser les notifications
+    total_count = len(notifications)
+    unread_count = len([n for n in notifications if not n["is_read"]])
+    
+    # Grouper par type
+    by_type = {}
+    for notif in notifications:
+        type_name = notif.get("type", "unknown")
+        if type_name not in by_type:
+            by_type[type_name] = 0
+        by_type[type_name] += 1
+    
+    # Détecter les notifications de test
+    test_keywords = ["test", "Test", "TEST", "demo", "Demo", "DEMO", "exemple", "Exemple"]
+    test_notifications = [
+        notif for notif in notifications
+        if any(keyword in notif.get("title", "") or keyword in notif.get("message", "") 
+               for keyword in test_keywords)
+    ]
+    
+    return {
+        "total_notifications": total_count,
+        "unread_notifications": unread_count,
+        "notifications_by_type": by_type,
+        "test_notifications_count": len(test_notifications),
+        "test_notifications": [
+            {
+                "id": notif["id"],
+                "title": notif["title"],
+                "message": notif["message"],
+                "type": notif["type"],
+                "recipient_id": notif["recipient_id"],
+                "created_at": notif["created_at"]
+            }
+            for notif in test_notifications
+        ],
+        "all_notifications": [
+            {
+                "id": notif["id"],
+                "title": notif["title"],
+                "message": notif["message"][:100] + "..." if len(notif["message"]) > 100 else notif["message"],
+                "type": notif["type"],
+                "recipient_id": notif["recipient_id"],
+                "is_read": notif["is_read"],
+                "created_at": notif["created_at"]
+            }
+            for notif in notifications
+        ]
+    }
+
+@router.delete("/test-notifications")
+async def delete_test_notifications(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Supprimer toutes les notifications de test
+    Réservé aux administrateurs et modérateurs
+    """
+    # Vérifier les permissions
+    if current_user.role not in ["admin", "moderateur"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès refusé : seuls les administrateurs et modérateurs peuvent supprimer les notifications de test"
+        )
+    
+    removed_count = clean_test_notifications()
+    
+    return {
+        "message": f"{removed_count} notification(s) de test supprimée(s)",
+        "removed_count": removed_count,
+        "remaining_notifications": len(notification_manager.notifications_store)
+    }
 
 @router.get("/health")
 async def notifications_health():

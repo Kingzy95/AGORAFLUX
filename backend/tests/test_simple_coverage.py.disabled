@@ -1,0 +1,372 @@
+"""Tests simples pour améliorer la couverture"""
+import pytest
+from unittest.mock import Mock, patch, MagicMock
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app)
+
+
+class TestBasicFunctionality:
+    """Tests de base pour améliorer la couverture"""
+
+    def test_app_initialization(self):
+        """Test que l'application s'initialise correctement"""
+        assert app is not None
+        assert hasattr(app, 'routes')
+
+    def test_health_endpoints(self):
+        """Test des endpoints de santé"""
+        health_endpoints = [
+            "/",
+            "/health",
+            "/api/v1"
+        ]
+        
+        for endpoint in health_endpoints:
+            response = client.get(endpoint)
+            # Ne doit pas retourner 500 (erreur serveur)
+            assert response.status_code != 500
+
+    def test_api_v1_base(self):
+        """Test de l'endpoint API v1 de base"""
+        response = client.get("/api/v1")
+        assert response.status_code in [200, 404]
+
+    def test_cors_preflight(self):
+        """Test des requêtes CORS preflight"""
+        response = client.options("/api/v1/auth/login")
+        # Doit gérer les requêtes OPTIONS
+        assert response.status_code in [200, 204, 404]
+
+    def test_404_handling(self):
+        """Test de gestion des 404"""
+        response = client.get("/nonexistent-endpoint")
+        assert response.status_code == 404
+
+    def test_method_not_allowed(self):
+        """Test de méthodes non autorisées"""
+        response = client.patch("/")
+        assert response.status_code in [404, 405]
+
+    def test_api_documentation_endpoints(self):
+        """Test des endpoints de documentation"""
+        doc_endpoints = [
+            "/docs",
+            "/redoc",
+            "/openapi.json"
+        ]
+        
+        for endpoint in doc_endpoints:
+            response = client.get(endpoint)
+            assert response.status_code in [200, 404]
+
+    def test_json_content_type(self):
+        """Test que les APIs retournent du JSON"""
+        api_endpoints = [
+            "/api/v1/auth/login",
+            "/api/v1/auth/register"
+        ]
+        
+        for endpoint in api_endpoints:
+            response = client.post(endpoint, json={})
+            if response.status_code != 404:
+                content_type = response.headers.get("content-type", "")
+                assert "application/json" in content_type
+
+    def test_security_headers(self):
+        """Test de présence des headers de sécurité"""
+        response = client.get("/")
+        headers = response.headers
+        # Vérifier qu'on a des headers (structure de base)
+        assert len(headers) > 0
+
+    def test_request_validation(self):
+        """Test de validation des requêtes"""
+        invalid_json_endpoints = [
+            "/api/v1/auth/login",
+            "/api/v1/auth/register"
+        ]
+        
+        for endpoint in invalid_json_endpoints:
+            # Envoyer du JSON invalide
+            response = client.post(endpoint, json={"invalid": "data"})
+            # Doit retourner une erreur de validation, pas un crash
+            assert response.status_code in [400, 401, 403, 422]
+
+
+class TestDatabaseConnection:
+    """Tests de connexion base de données"""
+
+    @patch('app.core.database.create_engine')
+    def test_database_engine_creation(self, mock_create_engine):
+        """Test de création du moteur de base de données"""
+        mock_engine = Mock()
+        mock_create_engine.return_value = mock_engine
+        
+        from app.core.database import Database
+        db = Database()
+        
+        assert db is not None
+        mock_create_engine.assert_called()
+
+    @patch('app.core.database.sessionmaker')
+    def test_database_session_creation(self, mock_sessionmaker):
+        """Test de création de session"""
+        mock_session_factory = Mock()
+        mock_sessionmaker.return_value = mock_session_factory
+        
+        # Test que sessionmaker est utilisé
+        from app.core.database import Database
+        db = Database()
+        
+        assert db is not None
+
+    def test_database_dependency(self):
+        """Test de la dépendance de base de données"""
+        from app.core.database import get_db
+        
+        # Test que get_db est un générateur
+        db_gen = get_db()
+        assert hasattr(db_gen, '__next__')
+
+
+class TestAuthentication:
+    """Tests d'authentification sans DB"""
+
+    def test_password_hashing(self):
+        """Test de hachage de mot de passe"""
+        from app.core.security import get_password_hash, verify_password
+        
+        password = "testpassword123"
+        hashed = get_password_hash(password)
+        
+        assert hashed != password
+        assert verify_password(password, hashed) is True
+        assert verify_password("wrongpassword", hashed) is False
+
+    def test_token_creation(self):
+        """Test de création de token"""
+        from app.core.security import create_access_token
+        
+        data = {"sub": "test@example.com", "user_id": 1}
+        token = create_access_token(data)
+        
+        assert isinstance(token, str)
+        assert len(token) > 0
+
+    def test_token_verification(self):
+        """Test de vérification de token"""
+        from app.core.security import create_access_token, verify_token
+        
+        data = {"sub": "test@example.com", "user_id": 1}
+        token = create_access_token(data)
+        
+        decoded = verify_token(token)
+        assert decoded["sub"] == "test@example.com"
+        assert decoded["user_id"] == 1
+
+    def test_invalid_token_verification(self):
+        """Test de vérification de token invalide"""
+        from app.core.security import verify_token
+        
+        with pytest.raises(Exception):
+            verify_token("invalid.token.string")
+
+
+class TestConfiguration:
+    """Tests de configuration"""
+
+    def test_settings_loading(self):
+        """Test de chargement des paramètres"""
+        from app.core.config import get_settings
+        
+        settings = get_settings()
+        assert settings is not None
+        assert hasattr(settings, 'PROJECT_NAME')
+        assert settings.PROJECT_NAME == "AgoraFlux"
+
+    def test_settings_environment(self):
+        """Test de paramètres d'environnement"""
+        from app.core.config import Settings
+        
+        settings = Settings()
+        assert hasattr(settings, 'ENVIRONMENT')
+        assert hasattr(settings, 'DEBUG')
+
+    def test_database_url_config(self):
+        """Test de configuration URL DB"""
+        from app.core.config import Settings
+        
+        settings = Settings()
+        assert hasattr(settings, 'DATABASE_URL')
+
+    def test_jwt_config(self):
+        """Test de configuration JWT"""
+        from app.core.config import Settings
+        
+        settings = Settings()
+        assert hasattr(settings, 'SECRET_KEY')
+        assert hasattr(settings, 'ACCESS_TOKEN_EXPIRE_MINUTES')
+
+
+class TestLogging:
+    """Tests de logging"""
+
+    def test_logging_setup(self):
+        """Test de configuration du logging"""
+        from app.core.logging import setup_logging
+        
+        # Ne doit pas lever d'exception
+        try:
+            setup_logging()
+            assert True
+        except Exception:
+            assert False, "setup_logging ne devrait pas lever d'exception"
+
+    def test_get_logger(self):
+        """Test d'obtention d'un logger"""
+        from app.core.logging import get_logger
+        
+        logger = get_logger("test")
+        assert logger is not None
+        assert hasattr(logger, 'info')
+        assert hasattr(logger, 'error')
+
+    def test_logger_default_name(self):
+        """Test du nom par défaut du logger"""
+        from app.core.logging import get_logger
+        
+        logger = get_logger()
+        assert logger is not None
+
+
+class TestMiddleware:
+    """Tests de middleware"""
+
+    def test_cors_middleware_presence(self):
+        """Test de présence du middleware CORS"""
+        response = client.get("/")
+        headers = response.headers
+        
+        # Vérifier qu'il y a des headers (le middleware fonctionne)
+        assert len(headers) > 0
+
+    def test_security_middleware_response(self):
+        """Test de réponse du middleware de sécurité"""
+        response = client.get("/api/v1/auth/login")
+        
+        # Le middleware doit traiter la requête sans erreur
+        assert response.status_code != 500
+
+    def test_trusted_host_middleware(self):
+        """Test du middleware TrustedHost"""
+        # Test avec l'host par défaut de TestClient
+        response = client.get("/")
+        assert response.status_code != 403  # Pas bloqué par TrustedHost
+
+
+class TestErrorHandling:
+    """Tests de gestion d'erreurs"""
+
+    def test_validation_error_handling(self):
+        """Test de gestion d'erreurs de validation"""
+        response = client.post("/api/v1/auth/register", json={
+            "email": "invalid-email"
+        })
+        
+        assert response.status_code in [400, 422]
+        assert response.headers.get("content-type", "").startswith("application/json")
+
+    def test_unauthorized_error_handling(self):
+        """Test de gestion d'erreurs non autorisées"""
+        response = client.get("/api/v1/auth/me")
+        
+        assert response.status_code in [401, 403]
+
+    def test_server_error_handling(self):
+        """Test que les erreurs serveur sont gérées"""
+        # Tester des endpoints qui pourraient causer des erreurs
+        endpoints = [
+            "/api/v1/dashboard/personal",
+            "/api/v1/auth/community/stats"
+        ]
+        
+        for endpoint in endpoints:
+            response = client.get(endpoint)
+            # Même si erreur, doit être géré proprement
+            assert response.status_code in [200, 401, 403, 404, 422]
+
+
+class TestDataValidation:
+    """Tests de validation de données"""
+
+    def test_email_validation(self):
+        """Test de validation d'email"""
+        invalid_emails = ["notanemail", "test@", "@test.com"]
+        
+        for email in invalid_emails:
+            response = client.post("/api/v1/auth/register", json={
+                "email": email,
+                "password": "validpassword"
+            })
+            assert response.status_code in [400, 422]
+
+    def test_password_validation(self):
+        """Test de validation de mot de passe"""
+        weak_passwords = ["123", "abc"]
+        
+        for password in weak_passwords:
+            response = client.post("/api/v1/auth/register", json={
+                "email": "test@example.com",
+                "password": password
+            })
+            assert response.status_code in [400, 422]
+
+    def test_required_fields_validation(self):
+        """Test de validation des champs requis"""
+        response = client.post("/api/v1/auth/register", json={})
+        assert response.status_code in [400, 422]
+
+
+class TestAPIRoutes:
+    """Tests des routes API"""
+
+    def test_auth_routes_exist(self):
+        """Test que les routes d'authentification existent"""
+        auth_routes = [
+            "/api/v1/auth/register",
+            "/api/v1/auth/login",
+            "/api/v1/auth/refresh"
+        ]
+        
+        for route in auth_routes:
+            response = client.post(route, json={})
+            assert response.status_code != 404
+
+    def test_project_routes_exist(self):
+        """Test que les routes de projet existent"""
+        project_routes = [
+            "/api/v1/projects",
+            "/api/v1/projects/1"
+        ]
+        
+        for route in project_routes:
+            response = client.get(route)
+            assert response.status_code in [200, 401, 403, 404]
+
+    def test_dashboard_routes_exist(self):
+        """Test que les routes de dashboard existent"""
+        dashboard_routes = [
+            "/api/v1/dashboard/personal"
+        ]
+        
+        for route in dashboard_routes:
+            response = client.get(route)
+            assert response.status_code != 404
+
+    def test_api_versioning(self):
+        """Test du versioning de l'API"""
+        response = client.get("/api/v1")
+        # L'endpoint versionné doit exister ou rediriger
+        assert response.status_code in [200, 301, 302, 404] 

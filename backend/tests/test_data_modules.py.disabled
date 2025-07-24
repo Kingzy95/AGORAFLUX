@@ -1,0 +1,441 @@
+"""Tests pour les modules data/ avec faible couverture"""
+import pytest
+from unittest.mock import Mock, patch, MagicMock
+from datetime import datetime
+import json
+
+
+class TestDataSources:
+    """Tests pour app/data/sources.py (38% actuellement)"""
+    
+    def test_data_sources_imports(self):
+        """Test d'import du module sources"""
+        from app.data import sources
+        assert sources is not None
+
+    def test_data_source_types(self):
+        """Test des types de sources de données"""
+        from app.data.sources import DataSourceType
+        
+        # Test énumération des types
+        assert hasattr(DataSourceType, 'CSV')
+        assert hasattr(DataSourceType, 'JSON')
+        assert hasattr(DataSourceType, 'DATABASE')
+
+    def test_data_source_validation(self):
+        """Test de validation des sources"""
+        from app.data.sources import validate_data_source
+        
+        # Test avec source valide
+        valid_source = {
+            "type": "csv",
+            "url": "https://example.com/data.csv",
+            "format": "csv"
+        }
+        
+        result = validate_data_source(valid_source)
+        assert result is True
+
+    def test_data_source_connection(self):
+        """Test de connexion aux sources"""
+        from app.data.sources import connect_to_source
+        
+        source_config = {
+            "type": "mock",
+            "connection_string": "test://localhost"
+        }
+        
+        with patch('app.data.sources.create_connection') as mock_connect:
+            mock_connect.return_value = Mock()
+            connection = connect_to_source(source_config)
+            assert connection is not None
+
+    def test_data_source_metadata_extraction(self):
+        """Test d'extraction de métadonnées"""
+        from app.data.sources import extract_metadata
+        
+        mock_source = Mock()
+        mock_source.columns = ["id", "name", "value"]
+        mock_source.row_count = 1000
+        
+        metadata = extract_metadata(mock_source)
+        
+        assert "columns" in metadata
+        assert "row_count" in metadata
+        assert metadata["columns"] == ["id", "name", "value"]
+        assert metadata["row_count"] == 1000
+
+
+class TestDataProcessor:
+    """Tests pour app/data/processor.py (20% actuellement)"""
+    
+    def test_data_processor_imports(self):
+        """Test d'import du module processor"""
+        from app.data import processor
+        assert processor is not None
+
+    def test_data_cleaning_operations(self):
+        """Test des opérations de nettoyage"""
+        from app.data.processor import DataCleaner
+        
+        cleaner = DataCleaner()
+        
+        # Test données avec valeurs nulles
+        dirty_data = [
+            {"id": 1, "name": "John", "age": None},
+            {"id": 2, "name": "", "age": 25},
+            {"id": None, "name": "Jane", "age": 30}
+        ]
+        
+        clean_data = cleaner.remove_null_values(dirty_data)
+        assert len(clean_data) < len(dirty_data)
+
+    def test_data_transformation_operations(self):
+        """Test des opérations de transformation"""
+        from app.data.processor import DataTransformer
+        
+        transformer = DataTransformer()
+        
+        # Test normalisation des données
+        raw_data = [
+            {"name": "  JOHN DOE  ", "email": "JOHN@EXAMPLE.COM"},
+            {"name": "jane smith", "email": "jane@example.com"}
+        ]
+        
+        normalized_data = transformer.normalize_text_fields(raw_data)
+        
+        assert normalized_data[0]["name"] == "John Doe"
+        assert normalized_data[0]["email"] == "john@example.com"
+
+    def test_data_validation_rules(self):
+        """Test des règles de validation"""
+        from app.data.processor import DataValidator
+        
+        validator = DataValidator()
+        
+        # Test validation email
+        assert validator.validate_email("test@example.com") is True
+        assert validator.validate_email("invalid-email") is False
+        
+        # Test validation numérique
+        assert validator.validate_numeric("123.45") is True
+        assert validator.validate_numeric("not-a-number") is False
+
+    def test_data_aggregation_operations(self):
+        """Test des opérations d'agrégation"""
+        from app.data.processor import DataAggregator
+        
+        aggregator = DataAggregator()
+        
+        data = [
+            {"category": "A", "value": 10},
+            {"category": "A", "value": 20},
+            {"category": "B", "value": 15},
+            {"category": "B", "value": 25}
+        ]
+        
+        aggregated = aggregator.group_by_category(data)
+        
+        assert "A" in aggregated
+        assert "B" in aggregated
+        assert aggregated["A"]["total"] == 30
+        assert aggregated["B"]["total"] == 40
+
+    def test_data_format_conversion(self):
+        """Test de conversion de formats"""
+        from app.data.processor import FormatConverter
+        
+        converter = FormatConverter()
+        
+        # Test CSV vers JSON
+        csv_data = "id,name,age\n1,John,25\n2,Jane,30"
+        json_data = converter.csv_to_json(csv_data)
+        
+        assert isinstance(json_data, list)
+        assert len(json_data) == 2
+        assert json_data[0]["name"] == "John"
+
+
+class TestDataFusion:
+    """Tests pour app/data/fusion.py (24% actuellement)"""
+    
+    def test_data_fusion_imports(self):
+        """Test d'import du module fusion"""
+        from app.data import fusion
+        assert fusion is not None
+
+    def test_data_merging_operations(self):
+        """Test des opérations de fusion"""
+        from app.data.fusion import DataMerger
+        
+        merger = DataMerger()
+        
+        dataset1 = [
+            {"id": 1, "name": "John", "city": "Paris"},
+            {"id": 2, "name": "Jane", "city": "Lyon"}
+        ]
+        
+        dataset2 = [
+            {"id": 1, "age": 25, "job": "Developer"},
+            {"id": 2, "age": 30, "job": "Designer"}
+        ]
+        
+        merged_data = merger.merge_by_id(dataset1, dataset2)
+        
+        assert len(merged_data) == 2
+        assert merged_data[0]["name"] == "John"
+        assert merged_data[0]["age"] == 25
+
+    def test_data_deduplication(self):
+        """Test de déduplication"""
+        from app.data.fusion import DataDeduplicator
+        
+        deduplicator = DataDeduplicator()
+        
+        data_with_duplicates = [
+            {"id": 1, "name": "John"},
+            {"id": 2, "name": "Jane"},
+            {"id": 1, "name": "John"},  # Doublon
+            {"id": 3, "name": "Bob"}
+        ]
+        
+        deduplicated = deduplicator.remove_duplicates(data_with_duplicates, key="id")
+        
+        assert len(deduplicated) == 3
+        assert deduplicated[0]["id"] == 1
+        assert deduplicated[1]["id"] == 2
+        assert deduplicated[2]["id"] == 3
+
+    def test_data_schema_alignment(self):
+        """Test d'alignement de schémas"""
+        from app.data.fusion import SchemaAligner
+        
+        aligner = SchemaAligner()
+        
+        schema1 = {"name": "string", "age": "integer", "city": "string"}
+        schema2 = {"full_name": "string", "years": "integer", "location": "string"}
+        
+        mapping = {
+            "full_name": "name",
+            "years": "age",
+            "location": "city"
+        }
+        
+        aligned_schema = aligner.align_schemas(schema1, schema2, mapping)
+        
+        assert "name" in aligned_schema
+        assert "age" in aligned_schema
+        assert "city" in aligned_schema
+
+    def test_data_quality_assessment(self):
+        """Test d'évaluation de qualité"""
+        from app.data.fusion import DataQualityAssessor
+        
+        assessor = DataQualityAssessor()
+        
+        test_data = [
+            {"id": 1, "name": "John", "email": "john@example.com"},
+            {"id": 2, "name": "", "email": "invalid-email"},
+            {"id": None, "name": "Jane", "email": "jane@example.com"}
+        ]
+        
+        quality_report = assessor.assess_quality(test_data)
+        
+        assert "completeness" in quality_report
+        assert "validity" in quality_report
+        assert quality_report["completeness"] < 1.0  # Certaines valeurs manquantes
+
+
+class TestDataPipeline:
+    """Tests pour app/data/pipeline.py (17% actuellement)"""
+    
+    def test_data_pipeline_imports(self):
+        """Test d'import du module pipeline"""
+        from app.data import pipeline
+        assert pipeline is not None
+
+    def test_pipeline_stage_creation(self):
+        """Test de création d'étapes de pipeline"""
+        from app.data.pipeline import PipelineStage, Pipeline
+        
+        # Étape de nettoyage
+        cleaning_stage = PipelineStage(
+            name="cleaning",
+            function=lambda data: [item for item in data if item.get("valid", True)]
+        )
+        
+        assert cleaning_stage.name == "cleaning"
+        assert callable(cleaning_stage.function)
+
+    def test_pipeline_execution(self):
+        """Test d'exécution de pipeline"""
+        from app.data.pipeline import Pipeline, PipelineStage
+        
+        # Données d'entrée
+        input_data = [
+            {"id": 1, "value": "  test  ", "valid": True},
+            {"id": 2, "value": "invalid", "valid": False},
+            {"id": 3, "value": "  another  ", "valid": True}
+        ]
+        
+        # Étapes du pipeline
+        filter_stage = PipelineStage(
+            name="filter",
+            function=lambda data: [item for item in data if item.get("valid")]
+        )
+        
+        clean_stage = PipelineStage(
+            name="clean",
+            function=lambda data: [
+                {**item, "value": item["value"].strip()} for item in data
+            ]
+        )
+        
+        pipeline = Pipeline([filter_stage, clean_stage])
+        result = pipeline.execute(input_data)
+        
+        assert len(result) == 2  # Un élément filtré
+        assert result[0]["value"] == "test"  # Nettoyé
+        assert result[1]["value"] == "another"  # Nettoyé
+
+    def test_pipeline_error_handling(self):
+        """Test de gestion d'erreurs du pipeline"""
+        from app.data.pipeline import Pipeline, PipelineStage
+        
+        def failing_function(data):
+            raise ValueError("Intentional error")
+        
+        failing_stage = PipelineStage(name="failing", function=failing_function)
+        pipeline = Pipeline([failing_stage])
+        
+        with pytest.raises(ValueError):
+            pipeline.execute([{"test": "data"}])
+
+    def test_pipeline_monitoring(self):
+        """Test de monitoring du pipeline"""
+        from app.data.pipeline import PipelineMonitor
+        
+        monitor = PipelineMonitor()
+        
+        # Démarrer le monitoring
+        monitor.start_stage("data_loading")
+        assert monitor.current_stage == "data_loading"
+        
+        # Terminer l'étape
+        monitor.complete_stage("data_loading", success=True)
+        
+        # Vérifier le rapport
+        report = monitor.get_report()
+        assert "data_loading" in report
+        assert report["data_loading"]["success"] is True
+
+    def test_pipeline_configuration(self):
+        """Test de configuration du pipeline"""
+        from app.data.pipeline import PipelineConfig
+        
+        config = PipelineConfig({
+            "input_source": "csv",
+            "output_format": "json",
+            "stages": ["clean", "validate", "transform"],
+            "error_handling": "skip"
+        })
+        
+        assert config.input_source == "csv"
+        assert config.output_format == "json"
+        assert len(config.stages) == 3
+        assert config.error_handling == "skip"
+
+
+class TestDataDocumentation:
+    """Tests pour app/data/documentation.py (27% actuellement)"""
+    
+    def test_data_documentation_imports(self):
+        """Test d'import du module documentation"""
+        from app.data import documentation
+        assert documentation is not None
+
+    def test_metadata_generation(self):
+        """Test de génération de métadonnées"""
+        from app.data.documentation import MetadataGenerator
+        
+        generator = MetadataGenerator()
+        
+        sample_data = [
+            {"id": 1, "name": "John", "age": 25},
+            {"id": 2, "name": "Jane", "age": 30},
+            {"id": 3, "name": "Bob", "age": 35}
+        ]
+        
+        metadata = generator.generate_metadata(sample_data)
+        
+        assert "columns" in metadata
+        assert "row_count" in metadata
+        assert "data_types" in metadata
+        assert metadata["row_count"] == 3
+
+    def test_schema_documentation(self):
+        """Test de documentation de schéma"""
+        from app.data.documentation import SchemaDocumenter
+        
+        documenter = SchemaDocumenter()
+        
+        schema = {
+            "id": {"type": "integer", "description": "Unique identifier"},
+            "name": {"type": "string", "description": "User full name"},
+            "age": {"type": "integer", "description": "User age in years"}
+        }
+        
+        documentation = documenter.document_schema(schema)
+        
+        assert "id" in documentation
+        assert "name" in documentation
+        assert documentation["id"]["type"] == "integer"
+
+    def test_data_lineage_tracking(self):
+        """Test de suivi de lignage"""
+        from app.data.documentation import DataLineageTracker
+        
+        tracker = DataLineageTracker()
+        
+        # Ajouter des transformations
+        tracker.add_transformation("raw_data", "cleaned_data", "remove_nulls")
+        tracker.add_transformation("cleaned_data", "final_data", "normalize")
+        
+        lineage = tracker.get_lineage("final_data")
+        
+        assert len(lineage) == 2
+        assert lineage[0]["source"] == "raw_data"
+        assert lineage[1]["target"] == "final_data"
+
+    def test_data_catalog_entry(self):
+        """Test d'entrée de catalogue"""
+        from app.data.documentation import DataCatalogEntry
+        
+        entry = DataCatalogEntry(
+            name="customer_data",
+            description="Customer information dataset",
+            source="CRM system",
+            format="CSV",
+            size="10MB",
+            last_updated=datetime.now()
+        )
+        
+        assert entry.name == "customer_data"
+        assert entry.format == "CSV"
+        assert entry.size == "10MB"
+
+    def test_data_profile_generation(self):
+        """Test de génération de profil"""
+        from app.data.documentation import DataProfiler
+        
+        profiler = DataProfiler()
+        
+        numerical_data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        profile = profiler.profile_numerical_column(numerical_data)
+        
+        assert "min" in profile
+        assert "max" in profile
+        assert "mean" in profile
+        assert profile["min"] == 1
+        assert profile["max"] == 10
+        assert profile["mean"] == 5.5 
