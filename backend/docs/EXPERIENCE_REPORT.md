@@ -80,7 +80,7 @@
 **Problème** : Requêtes lentes sur les visualisations
 **Solution** :
 - Optimisation des requêtes SQL avec index
-- Cache Redis pour les données fréquemment consultées
+- Cache mémoire pour les données fréquemment consultées
 - Pagination des résultats volumineux
 
 ###  **Défis Sécurité**
@@ -140,7 +140,7 @@
 - **Objectif** : < 100ms temps de réponse API
 - **Actions** :
   - Optimisation requêtes avec EXPLAIN ANALYZE
-  - Mise en cache aggressive avec Redis
+  - Mise en cache aggressive avec stockage mémoire
   - Compression gzip des réponses
 
 #### **3. UX Mobile**
@@ -156,7 +156,7 @@
 - **Objectif** : Système de notifications robuste
 - **Actions** :
   - Stockage PostgreSQL des notifications
-  - Queue Redis pour traitement asynchrone
+  - Queue mémoire pour traitement asynchrone
   - Push notifications navigateur
 
 #### **5. Analytics Avancées**

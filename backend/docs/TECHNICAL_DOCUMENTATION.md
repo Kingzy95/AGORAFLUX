@@ -273,7 +273,7 @@ SENSITIVE_PATTERNS = [
 #### Configuration
 - **Limite par défaut**: 120 requêtes/minute
 - **Fenêtre glissante**: 60 secondes
-- **Stockage**: Redis ou mémoire
+- **Stockage**: Mémoire (en développement)
 - **Exemptions**: Routes health check
 
 #### Implémentation

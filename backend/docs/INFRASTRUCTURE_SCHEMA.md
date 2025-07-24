@@ -33,7 +33,7 @@ L'infrastructure AgoraFlux suit une **architecture en couches** moderne, sépara
 
 ### **Data Layer**
 - **PostgreSQL Database** : Données structurées principales
-- **Redis Cache** : Cache haute performance
+- **Cache Mémoire** : Stockage temporaire en mémoire pour les notifications
 - **File Storage** : Stockage des datasets
 - **Security Logs** : Journalisation des événements
 
@@ -76,7 +76,7 @@ L'infrastructure AgoraFlux suit une **architecture en couches** moderne, sépara
 - **Séparation claire** : Frontend/Backend découplés
 - **Scalabilité** : Services modulaires et indépendants
 - **Sécurité** : Multiple couches de protection
-- **Performance** : Cache Redis + optimisations React
+- **Performance** : Cache mémoire + optimisations React
 - **Maintenabilité** : TypeScript + Documentation complète
 
 ### **Patterns Appliqués**
