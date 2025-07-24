@@ -39,7 +39,7 @@ def create_test_data():
             db.add(test_user)
             db.commit()
             db.refresh(test_user)
-            print(f"✅ Utilisateur de test créé: {test_user.email}")
+            print(f" Utilisateur de test créé: {test_user.email}")
 
         # Créer un projet de test s'il n'existe pas
         test_project = db.query(Project).filter(Project.title == "Projet Test KPI").first()
@@ -55,7 +55,7 @@ def create_test_data():
             db.add(test_project)
             db.commit()
             db.refresh(test_project)
-            print(f"✅ Projet de test créé: {test_project.title}")
+            print(f" Projet de test créé: {test_project.title}")
 
         # Créer des commentaires de test
         existing_comments = db.query(Comment).filter(Comment.project_id == test_project.id).count()
@@ -83,10 +83,10 @@ def create_test_data():
                 db.add(comment)
             
             db.commit()
-            print(f"✅ {len(comments_data)} commentaires de test créés")
+            print(f" {len(comments_data)} commentaires de test créés")
 
     except Exception as e:
-        print(f"❌ Erreur lors de la création des données: {e}")
+        print(f" Erreur lors de la création des données: {e}")
         db.rollback()
     finally:
         db.close()
@@ -99,7 +99,7 @@ async def test_collaboration_stats():
         # Récupérer l'utilisateur de test
         test_user = db.query(User).filter(User.email == "test@agoraflux.com").first()
         if not test_user:
-            print("❌ Utilisateur de test non trouvé")
+            print(" Utilisateur de test non trouvé")
             return
         
         # Tester l'endpoint de statistiques
@@ -114,7 +114,7 @@ async def test_collaboration_stats():
         
         print(f"📈 Total annotations: {stats.total_annotations}")
         print(f"🔄 Discussions actives: {stats.active_discussions}")
-        print(f"✅ Discussions résolues: {stats.resolved_discussions}")
+        print(f" Discussions résolues: {stats.resolved_discussions}")
         print(f"👥 Total participants: {stats.total_participants}")
         print(f"💬 Total réponses: {stats.total_replies}")
         print(f"⏱️ Temps de réponse moyen: {stats.avg_response_time}")
@@ -126,17 +126,17 @@ async def test_collaboration_stats():
         
         # Vérifications
         if stats.total_annotations > 0:
-            print("✅ Les KPI affichent des données réelles!")
+            print(" Les KPI affichent des données réelles!")
         else:
             print("⚠️ Aucune annotation trouvée")
             
         if stats.active_discussions + stats.resolved_discussions == stats.total_annotations:
-            print("✅ Cohérence des statistiques vérifiée")
+            print(" Cohérence des statistiques vérifiée")
         else:
             print("⚠️ Incohérence détectée dans les statistiques")
             
     except Exception as e:
-        print(f"❌ Erreur lors du test: {e}")
+        print(f" Erreur lors du test: {e}")
         import traceback
         traceback.print_exc()
     finally:

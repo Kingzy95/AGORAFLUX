@@ -316,7 +316,7 @@ export const useVisualizationData = (): VisualizationDataHook => {
             setParticipationStats(defaultTimeSeriesData);
           }
           
-          console.log('✅ Vraies données chargées avec succès:', {
+          console.log(' Vraies données chargées avec succès:', {
             totalRecords,
             activeDatasets,
             hasValidData

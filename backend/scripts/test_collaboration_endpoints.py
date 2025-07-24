@@ -23,13 +23,13 @@ def test_endpoint(method, endpoint, description, payload=None):
         
         # Vérifier le code de statut
         if response.status_code == 404:
-            print(f"❌ {description}: Endpoint introuvable (404)")
+            print(f" {description}: Endpoint introuvable (404)")
         elif response.status_code == 401:
             print(f"🔐 {description}: Authentification requise (401) - Endpoint existe")
         elif response.status_code == 422:
             print(f"📝 {description}: Paramètres invalides (422) - Endpoint existe")
         elif response.status_code < 300:
-            print(f"✅ {description}: Succès ({response.status_code})")
+            print(f" {description}: Succès ({response.status_code})")
         else:
             print(f"⚠️ {description}: Code {response.status_code}")
             
@@ -38,7 +38,7 @@ def test_endpoint(method, endpoint, description, payload=None):
     except requests.exceptions.Timeout:
         print(f"⏰ {description}: Timeout")
     except Exception as e:
-        print(f"❌ {description}: Erreur - {str(e)}")
+        print(f" {description}: Erreur - {str(e)}")
 
 def main():
     """Tester tous les endpoints de collaboration"""
@@ -77,8 +77,8 @@ def main():
     print()
     print("🎯 Endpoints problématiques identifiés :")
     print("   - Les endpoints avec 🔐 ou 📝 existent mais nécessitent une authentification")
-    print("   - Les endpoints avec ❌ sont introuvables (vérifier les routes)")
-    print("   - Les endpoints avec ✅ fonctionnent parfaitement")
+    print("   - Les endpoints avec  sont introuvables (vérifier les routes)")
+    print("   - Les endpoints avec  fonctionnent parfaitement")
 
 if __name__ == "__main__":
     main() 

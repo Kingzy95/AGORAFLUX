@@ -1,10 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import apiService from '../services/api';
+import { Project } from '../types/project';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  useEffect(() => {
+    const fetchActiveProjects = async () => {
+      try {
+        setLoading(true);
+        // Utiliser l'endpoint existant avec le filtre status=active
+        const response = await apiService.getProjects({
+          status: 'active',
+          per_page: 6 // Limiter à 6 projets pour l'affichage sur la home
+        });
+        setProjects(response.projects || []);
+      } catch (error) {
+        console.error('Erreur lors du chargement des projets actifs:', error);
+        setProjects([]); // Fallback à un tableau vide en cas d'erreur
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchActiveProjects();
+  }, []);
 
   const features = [
     {
@@ -214,102 +239,86 @@ const Home: React.FC = () => {
               </p>
             </div>
             <div className="mt-16 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {/* Project Cards */}
-              <div className="transform rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition-transform duration-300 hover:-translate-y-2 hover:shadow-xl">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                    Actif
-                  </span>
-                  <div className="flex items-center text-sm text-slate-500">
-                    <span className="material-icons text-sm mr-1">group</span>
-                    156 participants
+              {loading ? (
+                // État de chargement
+                <div className="col-span-full text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className="text-slate-600">Chargement des projets actifs...</p>
+                </div>
+              ) : projects.length === 0 ? (
+                // Aucun projet trouvé
+                <div className="col-span-full text-center py-12">
+                  <div className="text-slate-400 mb-4">
+                    <span className="material-icons text-4xl">folder_open</span>
                   </div>
+                  <h3 className="text-lg font-semibold text-slate-700 mb-2">Aucun projet actif</h3>
+                  <p className="text-slate-600 mb-6">
+                    Il n'y a actuellement aucun projet actif. Soyez le premier à en créer un !
+                  </p>
+                  {isAuthenticated && (
+                    <button 
+                      onClick={() => navigate('/projects/new')}
+                      className="inline-flex items-center rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                      Créer un projet
+                    </button>
+                  )}
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                  Budget Municipal Paris 2024
-                </h3>
-                <p className="text-base text-slate-600 mb-4">
-                  Analyse collaborative des dépenses publiques de la ville de Paris.
-                </p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-                    budget
-                  </span>
-                  <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-                    transparence
-                  </span>
-                </div>
-                <button 
-                  onClick={() => navigate('/projects/1')}
-                  className="w-full rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                >
-                  Participer
-                </button>
-              </div>
-
-              <div className="transform rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition-transform duration-300 hover:-translate-y-2 hover:shadow-xl">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">
-                    Brouillon
-                  </span>
-                  <div className="flex items-center text-sm text-slate-500">
-                    <span className="material-icons text-sm mr-1">group</span>
-                    42 participants
+              ) : (
+                // Affichage des projets
+                projects.map((project) => (
+                  <div 
+                    key={project.id}
+                    className="transform rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition-transform duration-300 hover:-translate-y-2 hover:shadow-xl"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                        Actif
+                      </span>
+                      <div className="flex items-center text-sm text-slate-500">
+                        <span className="material-icons text-sm mr-1">group</span>
+                        {project.contributor_count || 0} contributeurs
+                      </div>
+                    </div>
+                    
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                      {project.title}
+                    </h3>
+                    
+                    <p className="text-base text-slate-600 mb-4 line-clamp-3">
+                      {project.description}
+                    </p>
+                    
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {project.tags && project.tags.split(',').slice(0, 3).map((tag, tagIndex) => (
+                        <span key={tagIndex} className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                          {tag.trim()}
+                        </span>
+                      ))}
+                    </div>
+                    
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center text-xs text-slate-500 space-x-4">
+                        <div className="flex items-center">
+                          <span className="material-icons text-sm mr-1">comment</span>
+                          {project.comments_count || 0}
+                        </div>
+                        <div className="flex items-center">
+                          <span className="material-icons text-sm mr-1">visibility</span>
+                          {project.view_count || 0}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <button 
+                      onClick={() => navigate(`/projects/${project.id}`)}
+                      className="w-full rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    >
+                      Participer
+                    </button>
                   </div>
-                </div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                  Mobilité Urbaine
-                </h3>
-                <p className="text-base text-slate-600 mb-4">
-                  Étude participative sur l'amélioration des transports en commun.
-                </p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-                    transport
-                  </span>
-                  <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-                    urbain
-                  </span>
-                </div>
-                <button 
-                  onClick={() => navigate('/projects/2')}
-                  className="w-full rounded-md bg-blue-500 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                >
-                  Participer
-                </button>
-              </div>
-
-              <div className="transform rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition-transform duration-300 hover:-translate-y-2 hover:shadow-xl">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
-                    Terminé
-                  </span>
-                  <div className="flex items-center text-sm text-slate-500">
-                    <span className="material-icons text-sm mr-1">group</span>
-                    89 participants
-                  </div>
-                </div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                  Environnement & Climat
-                </h3>
-                <p className="text-base text-slate-600 mb-4">
-                  Analyse des politiques environnementales locales et propositions citoyennes.
-                </p>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-                    climat
-                  </span>
-                  <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
-                    environnement
-                  </span>
-                </div>
-                <button 
-                  onClick={() => navigate('/projects/3')}
-                  className="w-full rounded-md bg-slate-500 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
-                >
-                  Voir les résultats
-                </button>
-              </div>
+                ))
+              )}
             </div>
             <div className="mt-12 text-center">
               <button 

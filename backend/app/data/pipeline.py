@@ -90,12 +90,12 @@ class DataPipeline:
             }
             
             self.last_run = results
-            logger.info(f"✅ Pipeline terminé en {duration:.2f}s - {results['injected_records']} enregistrements injectés")
+            logger.info(f" Pipeline terminé en {duration:.2f}s - {results['injected_records']} enregistrements injectés")
             
             return results
             
         except Exception as e:
-            logger.error(f"❌ Erreur dans le pipeline: {str(e)}")
+            logger.error(f" Erreur dans le pipeline: {str(e)}")
             return {
                 "status": "error",
                 "error": str(e),
@@ -119,12 +119,12 @@ class DataPipeline:
                     logger.warning(f"⚠️ Erreur source {source}: {data['error']}")
                 else:
                     rows = len(data.get('data', []))
-                    logger.info(f"✅ Source {source}: {rows} lignes récupérées")
+                    logger.info(f" Source {source}: {rows} lignes récupérées")
             
             return raw_data
             
         except Exception as e:
-            logger.error(f"❌ Erreur lors de l'acquisition: {str(e)}")
+            logger.error(f" Erreur lors de l'acquisition: {str(e)}")
             # Fallback vers données de test en cas d'erreur
             logger.info("🔄 Basculement vers les données de test...")
             return self._get_mock_data()
@@ -167,10 +167,10 @@ class DataPipeline:
                 
                 # Log du résultat
                 quality = processed.get('quality_metrics', {})
-                logger.info(f"✅ {source_key} traité: {processed.get('processed_rows', 0)} lignes, qualité {quality.get('overall_score', 0):.1f}%")
+                logger.info(f" {source_key} traité: {processed.get('processed_rows', 0)} lignes, qualité {quality.get('overall_score', 0):.1f}%")
                 
             except Exception as e:
-                logger.error(f"❌ Erreur traitement {source_key}: {str(e)}")
+                logger.error(f" Erreur traitement {source_key}: {str(e)}")
                 processed_results[source_key] = {"error": str(e)}
         
         return processed_results
@@ -194,11 +194,11 @@ class DataPipeline:
                 fusion_type='civic_engagement'
             )
             
-            logger.info(f"✅ Fusion terminée: {fusion_result.records_merged} enregistrements fusionnés")
+            logger.info(f" Fusion terminée: {fusion_result.records_merged} enregistrements fusionnés")
             return fusion_result
             
         except Exception as e:
-            logger.error(f"❌ Erreur fusion: {str(e)}")
+            logger.error(f" Erreur fusion: {str(e)}")
             return None
     
     async def _generate_documentation(self, processed_data: Dict[str, Any], fusion_result: Optional[Any] = None) -> Optional[Dict[str, Any]]:
@@ -211,11 +211,11 @@ class DataPipeline:
                 fusion_result
             )
             
-            logger.info("✅ Documentation générée avec succès")
+            logger.info(" Documentation générée avec succès")
             return documentation
             
         except Exception as e:
-            logger.error(f"❌ Erreur génération documentation: {str(e)}")
+            logger.error(f" Erreur génération documentation: {str(e)}")
             return None
 
     async def _inject_data(self, processed_data: Dict[str, Any], fusion_result: Optional[Any] = None, documentation: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -240,7 +240,7 @@ class DataPipeline:
                     injection_results[source_key] = result
                     
                 except Exception as e:
-                    logger.error(f"❌ Erreur injection {source_key}: {str(e)}")
+                    logger.error(f" Erreur injection {source_key}: {str(e)}")
                     injection_results[source_key] = {"error": str(e)}
             
             # Injection des données fusionnées si disponibles
@@ -249,16 +249,16 @@ class DataPipeline:
                     fusion_injection = await self._inject_fusion_data(db, fusion_result, documentation)
                     injection_results['fusion'] = fusion_injection
                 except Exception as e:
-                    logger.error(f"❌ Erreur injection fusion: {str(e)}")
+                    logger.error(f" Erreur injection fusion: {str(e)}")
                     injection_results['fusion'] = {"error": str(e)}
             
             # Commit des changements
             db.commit()
-            logger.info("✅ Toutes les injections commitées")
+            logger.info(" Toutes les injections commitées")
             
         except Exception as e:
             db.rollback()
-            logger.error(f"❌ Rollback des injections: {str(e)}")
+            logger.error(f" Rollback des injections: {str(e)}")
             raise
         finally:
             db.close()

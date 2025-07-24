@@ -1,9 +1,10 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext';
 import DashboardLayout from './components/layout/DashboardLayout';
 import ProjectsLayout from './components/layout/ProjectsLayout';
+import TokenExpiryHandler from './components/auth/TokenExpiryHandler';
 // import Layout from './components/Layout';
 // import ProtectedRoute from './components/ProtectedRoute';
 
@@ -25,12 +26,12 @@ import DiscussionsDashboard from './pages/DiscussionsDashboard';
 import CommunityDashboard from './pages/CommunityDashboard';
 import ReportsDashboard from './pages/ReportsDashboard';
 import NotificationsPage from './pages/NotificationsPage';
+import NotFound from './pages/NotFound';
+import Unauthorized from './pages/Unauthorized';
 
 // Placeholder components pour les pages manquantes
 const Settings = () => <div className="p-8 text-center">Paramètres en cours de développement...</div>;
-const ForgotPassword = () => <div className="p-8 text-center">Mot de passe oublié en cours de développement...</div>;
-const Unauthorized = () => <div className="p-8 text-center">Accès non autorisé</div>;
-const NotFound = () => <div className="p-8 text-center">Page non trouvée</div>;
+const ForgotPassword = () => <div className="p-8 text-center">Réinitialisation du mot de passe en cours de développement...</div>;
 
 // Configuration de React Query
 const queryClient = new QueryClient({
@@ -47,6 +48,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <Router>
+          <TokenExpiryHandler />
           <Routes>
             {/* Routes principales */}
             <Route path="/" element={<Home />} />
@@ -101,9 +103,8 @@ function App() {
             <Route path="/unauthorized" element={<DashboardLayout />}>
               <Route index element={<Unauthorized />} />
             </Route>
-            <Route path="*" element={<DashboardLayout />}>
-              <Route index element={<NotFound />} />
-            </Route>
+            {/* Route catch-all pour les pages non trouvées */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Router>
       </AuthProvider>

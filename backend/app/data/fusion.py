@@ -117,7 +117,7 @@ class DataFusion:
             records_merged=len(fused_data)
         )
         
-        logger.info(f"✅ Fusion {fusion_type} terminée: {len(fused_data)} enregistrements fusionnés")
+        logger.info(f" Fusion {fusion_type} terminée: {len(fused_data)} enregistrements fusionnés")
         return result
     
     def _validate_sources(self, processed_data: Dict[str, Any], config: FusionConfig) -> Dict[str, Any]:
@@ -129,7 +129,7 @@ class DataFusion:
             primary_data = processed_data[config.primary_source]
             if 'data' in primary_data and primary_data['data']:
                 available[config.primary_source] = primary_data
-                logger.info(f"✅ Source primaire {config.primary_source}: {len(primary_data['data'])} records")
+                logger.info(f" Source primaire {config.primary_source}: {len(primary_data['data'])} records")
         
         # Vérifier sources secondaires
         for source in config.secondary_sources:
@@ -137,7 +137,7 @@ class DataFusion:
                 secondary_data = processed_data[source]
                 if 'data' in secondary_data and secondary_data['data']:
                     available[source] = secondary_data
-                    logger.info(f"✅ Source secondaire {source}: {len(secondary_data['data'])} records")
+                    logger.info(f" Source secondaire {source}: {len(secondary_data['data'])} records")
         
         return available
     
@@ -163,10 +163,10 @@ class DataFusion:
                 df['_source_quality'] = source_data.get('quality_metrics', {}).get('overall_score', 0)
                 
                 prepared[source_name] = df
-                logger.info(f"✅ {source_name} préparé: {len(df)} lignes, {len(df.columns)} colonnes")
+                logger.info(f" {source_name} préparé: {len(df)} lignes, {len(df.columns)} colonnes")
                 
             except Exception as e:
-                logger.error(f"❌ Erreur préparation {source_name}: {e}")
+                logger.error(f" Erreur préparation {source_name}: {e}")
                 continue
         
         return prepared

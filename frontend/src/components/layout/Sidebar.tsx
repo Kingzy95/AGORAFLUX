@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../hooks/useNotifications';
 import {
   Button,
   Avatar, AvatarFallback, AvatarImage,
@@ -30,6 +31,7 @@ interface NavigationItem {
   badge?: string | number;
   description?: string;
   external?: boolean;
+  requiredRole?: 'admin' | 'moderateur'; // Rôle minimum requis
 }
 
 interface QuickAction {
@@ -68,7 +70,8 @@ const NAVIGATION_ITEMS: NavigationItem[] = [
     label: 'Discussions',
     icon: MessageSquare,
     path: '/dashboard/discussions',
-    description: 'Conversations et débats en cours'
+    description: 'Conversations et débats en cours',
+    //requiredRole: 'moderateur' // Requis modérateur ou admin
   },
   {
     id: 'community',
@@ -89,14 +92,16 @@ const NAVIGATION_ITEMS: NavigationItem[] = [
     label: 'Reports',
     icon: FileText,
     path: '/dashboard/reports',
-    description: 'Reports'
+    description: 'Reports',
+    requiredRole: 'admin' // Requis admin uniquement
   },
   {
     id: 'admin',
     label: 'Admin',
     icon: Shield,
     path: '/admin',
-    description: 'Administration du site'
+    description: 'Administration du site',
+    requiredRole: 'admin' // Requis admin uniquement
   }
 ];
 
@@ -106,6 +111,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   className = ""
 }) => {
   const { user, logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -143,6 +149,29 @@ const Sidebar: React.FC<SidebarProps> = ({
     }
   ], [handleNavigation]);
 
+  // User role helpers
+  const isAdmin = user?.role === 'admin';
+  const isModerator = user?.role === 'moderateur';
+
+  // Filter navigation items based on user role
+  const filterNavigationByRole = (items: NavigationItem[]): NavigationItem[] => {
+    return items.filter(item => {
+      if (!item.requiredRole) return true; // Accessible à tous si pas de rôle requis
+      
+      switch (item.requiredRole) {
+        case 'admin':
+          return isAdmin;
+        case 'moderateur':
+          return isModerator || isAdmin; // Admin a aussi accès aux pages modérateur
+        default:
+          return true;
+      }
+    });
+  };
+
+  // Filtered navigation items based on user role
+  const filteredNavigationItems = filterNavigationByRole(NAVIGATION_ITEMS);
+
   // Optimized active route detection
   const isActiveRoute = useCallback((path: string): boolean => {
     if (path === '/dashboard') {
@@ -177,6 +206,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   const NavigationItem: React.FC<{ item: NavigationItem }> = ({ item }) => {
     const isActive = isActiveRoute(item.path);
     const Icon = item.icon;
+
+    // Vérifier le rôle requis
+    if (item.requiredRole && user?.role !== item.requiredRole) {
+      return null; // Ne pas afficher l'item si le rôle n'est pas suffisant
+    }
 
     return (
       <Tooltip>
@@ -310,7 +344,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         )}
         <TooltipProvider delayDuration={0}>
           <div className="space-y-1">
-            {NAVIGATION_ITEMS.map((item) => (
+            {filteredNavigationItems.map((item) => (
               <NavigationItem key={item.id} item={item} />
             ))}
           </div>
@@ -387,12 +421,19 @@ const Sidebar: React.FC<SidebarProps> = ({
                   onClick={() => handleNavigation('/notifications')}
                 >
                   <Bell className="h-4 w-4" />
-                  <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+                  )}
                   {!isCollapsed && <span className="ml-2">Notifications</span>}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Notifications (3)</p>
+                <p>
+                  {unreadCount > 0 
+                    ? `Notifications (${unreadCount})` 
+                    : 'Notifications'
+                  }
+                </p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

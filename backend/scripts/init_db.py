@@ -39,7 +39,7 @@ def create_admin_user(db: SessionLocal) -> User:
     db.add(admin_user)
     db.commit()
     db.refresh(admin_user)
-    logger.info(f"✅ Utilisateur admin créé: {admin_user.email}")
+    logger.info(f" Utilisateur admin créé: {admin_user.email}")
     return admin_user
 
 
@@ -87,7 +87,7 @@ def create_test_users(db: SessionLocal) -> list[User]:
     
     for user in test_users:
         db.refresh(user)
-        logger.info(f"✅ Utilisateur test créé: {user.email}")
+        logger.info(f" Utilisateur test créé: {user.email}")
     
     return test_users
 
@@ -125,7 +125,7 @@ def create_sample_project(db: SessionLocal, owner: User) -> Project:
     db.add(project)
     db.commit()
     db.refresh(project)
-    logger.info(f"✅ Projet créé: {project.title}")
+    logger.info(f" Projet créé: {project.title}")
     return project
 
 
@@ -158,7 +158,7 @@ def create_sample_dataset(db: SessionLocal, project: Project, user: User) -> Dat
     db.add(dataset)
     db.commit()
     db.refresh(dataset)
-    logger.info(f"✅ Dataset créé: {dataset.name}")
+    logger.info(f" Dataset créé: {dataset.name}")
     return dataset
 
 
@@ -198,7 +198,7 @@ def init_database():
         # Créer des commentaires de démonstration (désactivé)
         logger.info("Commentaires de démonstration désactivés")
         
-        logger.info("✅ Base de données initialisée avec succès!")
+        logger.info(" Base de données initialisée avec succès!")
         logger.info("📊 Données créées:")
         logger.info(f"   - {len(all_users)} utilisateurs")
         logger.info(f"   - 1 projet")
@@ -211,7 +211,7 @@ def init_database():
         logger.info("   Utilisateur: citoyen@agoraflux.fr / user123")
         
     except Exception as e:
-        logger.error(f"❌ Erreur lors de l'initialisation: {e}")
+        logger.error(f" Erreur lors de l'initialisation: {e}")
         db.rollback()
         raise
     finally:

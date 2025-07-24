@@ -90,11 +90,11 @@ class DataSourceManager:
                         else:
                             return {"raw_content": content}
                     else:
-                        logger.error(f"❌ Erreur HTTP {response.status} pour {source.name}")
+                        logger.error(f" Erreur HTTP {response.status} pour {source.name}")
                         return {"error": f"HTTP {response.status}"}
                         
         except Exception as e:
-            logger.error(f"❌ Erreur lors de la récupération {source.name}: {str(e)}")
+            logger.error(f" Erreur lors de la récupération {source.name}: {str(e)}")
             return {"error": str(e)}
     
     def _parse_csv(self, content: str, source_name: str) -> Dict[str, Any]:
@@ -103,7 +103,7 @@ class DataSourceManager:
             csv_reader = csv.DictReader(StringIO(content))
             data = list(csv_reader)
             
-            logger.info(f"✅ {len(data)} lignes parsées pour {source_name}")
+            logger.info(f" {len(data)} lignes parsées pour {source_name}")
             
             return {
                 "source": source_name,
@@ -114,7 +114,7 @@ class DataSourceManager:
                 "retrieved_at": datetime.now().isoformat()
             }
         except Exception as e:
-            logger.error(f"❌ Erreur parsing CSV {source_name}: {str(e)}")
+            logger.error(f" Erreur parsing CSV {source_name}: {str(e)}")
             return {"error": f"CSV parsing error: {str(e)}"}
     
     async def fetch_all_sources(self) -> Dict[str, Any]:
@@ -133,10 +133,10 @@ class DataSourceManager:
             try:
                 results[source_key] = await task
             except Exception as e:
-                logger.error(f"❌ Erreur pour {source_key}: {str(e)}")
+                logger.error(f" Erreur pour {source_key}: {str(e)}")
                 results[source_key] = {"error": str(e)}
         
-        logger.info(f"✅ {len(results)} sources récupérées")
+        logger.info(f" {len(results)} sources récupérées")
         return results
     
     def get_source_info(self, source_key: str) -> Optional[DataSource]:

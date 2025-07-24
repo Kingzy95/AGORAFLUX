@@ -68,23 +68,36 @@ class ApiService {
     this.api.interceptors.response.use(
       (response) => response,
       async (error) => {
-        if (error.response?.status === 401) {
+        const originalRequest = error.config;
+        
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+          
           // Token expiré, essayer de le rafraîchir
           const refreshToken = localStorage.getItem('refresh_token');
           if (refreshToken) {
             try {
-              const response = await this.refreshToken(refreshToken);
-              localStorage.setItem('access_token', response.data.access_token);
-              // Réessayer la requête originale
-              return this.api.request(error.config);
+              const response = await axios.post(`${this.baseURL}/auth/refresh`, { 
+                refresh_token: refreshToken 
+              });
+              
+              const { access_token, refresh_token: newRefreshToken } = response.data;
+              this.setAuthTokens(access_token, newRefreshToken);
+              
+              // Réessayer la requête originale avec le nouveau token
+              originalRequest.headers.Authorization = `Bearer ${access_token}`;
+              return this.api.request(originalRequest);
+              
             } catch (refreshError) {
               // Échec du rafraîchissement, déconnecter l'utilisateur
-              this.logout();
-              window.location.href = '/login';
+              console.log('Token refresh failed, redirecting to login');
+              this.handleTokenExpiry();
+              return Promise.reject(refreshError);
             }
           } else {
-            this.logout();
-            window.location.href = '/login';
+            // Aucun refresh token, déconnecter
+            console.log('No refresh token found, redirecting to login');
+            this.handleTokenExpiry();
           }
         }
         return Promise.reject(error);
@@ -408,6 +421,19 @@ class ApiService {
     return !!localStorage.getItem('access_token');
   }
 
+  // Méthode pour gérer l'expiration des tokens
+  private handleTokenExpiry(): void {
+    // Nettoyer les tokens
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    
+    // Rediriger vers la page de login
+    // Éviter la redirection si on est déjà sur la page de login
+    if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
+      window.location.href = '/login';
+    }
+  }
+
   // === PIPELINE DE DONNÉES ===
 
   async getDataSources(): Promise<{
@@ -693,10 +719,6 @@ class ApiService {
   }
 
   // Méthodes pour les notifications
-  async createTestNotification(): Promise<void> {
-    await this.api.post('/notifications/test');
-  }
-
   async getNotifications(limit: number = 50, offset: number = 0, unreadOnly: boolean = false): Promise<any[]> {
     const response = await this.api.get('/notifications', {
       params: { limit, offset, unread_only: unreadOnly }
@@ -719,6 +741,12 @@ class ApiService {
 
   async deleteNotification(notificationId: string): Promise<void> {
     await this.api.delete(`/notifications/${notificationId}`);
+  }
+
+  // === DASHBOARD PERSONNEL ===
+  async getPersonalDashboard(): Promise<any> {
+    const response = await this.api.get('/dashboard/personal');
+    return response.data;
   }
 }
 

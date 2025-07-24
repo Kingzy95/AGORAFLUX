@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Check, CheckCheck, Trash2, Filter, Search, Clock, User, FileText, MessageSquare, Settings } from 'lucide-react';
 import { useNotifications, Notification } from '../hooks/useNotifications';
-import apiService from '../services/api';
 
 const NotificationsPage: React.FC = () => {
   const {
@@ -122,14 +121,6 @@ const NotificationsPage: React.FC = () => {
     }
   };
 
-  const handleTestNotification = async () => {
-    try {
-      await apiService.createTestNotification();
-    } catch (error) {
-      console.error('Erreur lors de la création de la notification de test:', error);
-    }
-  };
-
   const toggleNotificationSelection = (id: string) => {
     setSelectedNotifications(prev => 
       prev.includes(id) 
@@ -174,12 +165,6 @@ const NotificationsPage: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-3">
-              <button
-                onClick={handleTestNotification}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Test Notification
-              </button>
               
               {unreadCount > 0 && (
                 <button

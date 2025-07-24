@@ -229,7 +229,6 @@ docker-compose up -d
 
 ### 🔒 **Authentification**
 - JWT avec refresh tokens
-- Vérification email obligatoire
 - Sessions sécurisées
 - Protection CORS
 

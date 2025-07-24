@@ -306,24 +306,6 @@ async def delete_notification(
         detail="Notification non trouvée"
     )
 
-# Endpoints pour créer des notifications (pour testing)
-@router.post("/test")
-async def create_test_notification(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Créer une notification de test"""
-    await create_notification(
-        type="system",
-        title="Notification de test",
-        message="Ceci est une notification de test pour vérifier le système temps réel",
-        recipient_id=str(current_user.id),
-        data={"test": True},
-        priority="normal"
-    )
-    
-    return {"message": "Notification de test créée"}
-
 @router.get("/health")
 async def notifications_health():
     """Point de santé pour le module notifications"""

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../hooks/useNotifications';
 import {
   BarChart3, Users, MessageSquare, FolderOpen, Settings, HelpCircle,
   PlusCircle, Bell, Home, LogOut, User, Shield, Download, TrendingUp,
@@ -53,6 +54,7 @@ interface NavigationGroup {
 
 export function AppSidebar() {
   const { user, logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
   const { isMobile } = useSidebar();
@@ -101,11 +103,45 @@ export function AppSidebar() {
     }
   }, [user?.role]);
 
-  // Navigation data
+  // User role helpers
+  const isAdmin = user?.role === 'admin';
+  const isModerator = user?.role === 'moderateur';
+  const isUser = user?.role === 'utilisateur';
+
+  // Filter navigation items based on user role
+  const filterNavigationByRole = (items: NavigationItem[]): NavigationItem[] => {
+    return items.filter(item => {
+      switch (item.url) {
+        // Pages accessibles à tous les utilisateurs connectés
+        case '/dashboard':
+        case '/projects':
+        case '/export-center':
+        case '/dashboard/community':
+        case '/dashboard/analytics':
+          return true;
+        
+        // Pages réservées aux modérateurs et admins
+        case '/dashboard/discussions':
+          return isModerator || isAdmin;
+        
+        // Pages réservées aux admins uniquement
+        case '/dashboard/reports':
+        case '/dashboard/discussions':
+        case '/admin':
+          return isAdmin;
+        
+        // Par défaut, accessible à tous
+        default:
+          return true;
+      }
+    });
+  };
+
+  // Navigation data with role-based filtering
   const navigationData: NavigationGroup[] = [
     {
       title: "Principal",
-      items: [
+      items: filterNavigationByRole([
         {
           title: "Tableau de bord",
           url: "/dashboard",
@@ -124,16 +160,15 @@ export function AppSidebar() {
           icon: Download,
           isActive: isActiveRoute('/export-center')
         }
-      ]
+      ])
     },
     {
       title: "Collaboration",
-      items: [
+      items: filterNavigationByRole([
         {
           title: "Discussions",
           url: "/dashboard/discussions",
           icon: MessageSquare,
-          badge: 3,
           isActive: isActiveRoute('/dashboard/discussions')
         },
         {
@@ -154,20 +189,20 @@ export function AppSidebar() {
           icon: FileText,
           isActive: isActiveRoute('/dashboard/reports')
         }
-      ]
+      ])
     },
     {
       title: "Administration",
-      items: [
+      items: filterNavigationByRole([
         {
           title: "Admin",
           url: "/admin",
           icon: Shield,
           isActive: isActiveRoute('/admin')
         }
-      ]
+      ])
     }
-  ];
+  ].filter(group => group.items.length > 0); // Remove empty groups
 
   // Quick actions
   const quickActions = [
@@ -323,8 +358,12 @@ export function AppSidebar() {
               <div onClick={() => handleNavigation('/notifications')} className="cursor-pointer relative">
                 <Bell />
                 <span>Notifications</span>
-                <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-                <SidebarMenuBadge>3</SidebarMenuBadge>
+                {unreadCount > 0 && (
+                  <>
+                    <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+                    <SidebarMenuBadge>{unreadCount}</SidebarMenuBadge>
+                  </>
+                )}
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>

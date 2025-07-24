@@ -84,8 +84,8 @@ def test_connection():
     """
     try:
         with engine.connect() as connection:
-            logger.info("✅ Connexion à la base de données réussie")
+            logger.info(" Connexion à la base de données réussie")
             return True
     except Exception as e:
-        logger.error(f"❌ Erreur de connexion à la base de données: {e}")
+        logger.error(f" Erreur de connexion à la base de données: {e}")
         return False 

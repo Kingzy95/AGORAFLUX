@@ -77,7 +77,7 @@ class DataProcessor:
             }
         }
         
-        logger.info(f"✅ Données {data_type} traitées: {len(transformed_data)} lignes, qualité {quality_metrics.quality_level.value}")
+        logger.info(f" Données {data_type} traitées: {len(transformed_data)} lignes, qualité {quality_metrics.quality_level.value}")
         return result
     
     def _clean_raw_data(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:

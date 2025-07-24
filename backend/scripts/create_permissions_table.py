@@ -29,7 +29,7 @@ def create_permissions_table():
     try:
         # Créer la table des permissions
         Base.metadata.create_all(bind=engine, tables=[ProjectPermission.__table__])
-        print("✅ Table project_permissions créée avec succès")
+        print(" Table project_permissions créée avec succès")
         
         # Initialiser les permissions pour les projets existants
         with engine.connect() as conn:
@@ -82,11 +82,11 @@ def create_permissions_table():
                             }
                         )
                         
-                        print(f"✅ Permission créée pour le projet {project_id} (propriétaire: {owner_id})")
+                        print(f" Permission créée pour le projet {project_id} (propriétaire: {owner_id})")
                 
                 # Valider la transaction
                 trans.commit()
-                print("✅ Toutes les permissions ont été créées avec succès")
+                print(" Toutes les permissions ont été créées avec succès")
                 
             except Exception as e:
                 # Annuler la transaction en cas d'erreur
@@ -94,7 +94,7 @@ def create_permissions_table():
                 raise e
                 
     except Exception as e:
-        print(f"❌ Erreur lors de la création des permissions: {str(e)}")
+        print(f" Erreur lors de la création des permissions: {str(e)}")
         return False
     
     return True
@@ -124,14 +124,14 @@ def verify_permissions():
             result = conn.execute(text("SELECT role, COUNT(*) FROM project_permissions GROUP BY role"))
             role_counts = result.fetchall()
             
-            print("📋 Répartition des rôles:")
+            print("Répartition des rôles:")
             for role, count in role_counts:
                 print(f"   - {role}: {count}")
             
             return True
             
     except Exception as e:
-        print(f"❌ Erreur lors de la vérification: {str(e)}")
+        print(f" Erreur lors de la vérification: {str(e)}")
         return False
 
 
@@ -146,11 +146,11 @@ def main():
     if create_permissions_table():
         print("\n" + "=" * 60)
         verify_permissions()
-        print("\n✅ Système de permissions initialisé avec succès!")
+        print("\n Système de permissions initialisé avec succès!")
         print("\n📖 Les propriétaires de projets ont maintenant des permissions complètes.")
         print("   Vous pouvez maintenant inviter d'autres utilisateurs avec des rôles spécifiques.")
     else:
-        print("\n❌ Échec de l'initialisation du système de permissions")
+        print("\n Échec de l'initialisation du système de permissions")
         sys.exit(1)
 
 

@@ -263,7 +263,7 @@ const RealDataVisualization: React.FC<RealDataVisualizationProps> = ({ className
         <div className="flex items-center gap-2 text-green-800">
           <span className="material-icons text-sm">check_circle</span>
           <span className="text-sm font-medium">
-            ✅ Ces données proviennent directement des APIs publiques françaises (OpenData Paris)
+             Ces données proviennent directement des APIs publiques françaises (OpenData Paris)
           </span>
         </div>
       </div>

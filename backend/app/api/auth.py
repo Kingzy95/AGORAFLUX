@@ -15,7 +15,8 @@ from app.api.dependencies import (
 from app.services.auth_service import AuthService
 from app.schemas.auth import (
     LoginRequest, TokenResponse, UserRegistration, 
-    PasswordChangeRequest, RefreshTokenRequest, CurrentUser, UserProfileUpdate
+    PasswordChangeRequest, RefreshTokenRequest, CurrentUser, UserProfileUpdate,
+    UserRoleUpdate
 )
 from app.models.user import User, UserRole
 
@@ -363,30 +364,36 @@ async def get_user(
 @router.put("/users/{user_id}/role")
 async def update_user_role(
     user_id: int,
-    new_role: UserRole,
+    role_data: UserRoleUpdate,
     admin_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     """
     Met à jour le rôle d'un utilisateur (admin seulement)
     """
-    auth_service = AuthService(db)
-    user = auth_service.update_user_role(user_id, new_role, admin_user)
-    
-    return {
-        "message": f"Rôle mis à jour vers {new_role.value}",
-        "user": CurrentUser(
-            id=user.id,
-            email=user.email,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            role=user.role,
-            is_active=user.is_active,
-            is_verified=user.is_verified,
-            created_at=user.created_at,
-            last_login=user.last_login
+    try:
+        auth_service = AuthService(db)
+        user = auth_service.update_user_role(user_id, role_data.role, admin_user)
+        
+        return {
+            "message": f"Rôle mis à jour vers {role_data.role.value}",
+            "user": CurrentUser(
+                id=user.id,
+                email=user.email,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                role=user.role,
+                is_active=user.is_active,
+                is_verified=user.is_verified,
+                created_at=user.created_at,
+                last_login=user.last_login
+            )
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de la mise à jour du rôle: {str(e)}"
         )
-    }
 
 
 @router.put("/users/{user_id}/deactivate")

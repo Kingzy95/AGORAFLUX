@@ -13,7 +13,7 @@ from app.api.dependencies import get_current_user
 from app.models.user import User
 
 # Importer les routeurs des modules
-from app.api import auth, projects, permissions, data, datasets, collaboration, notifications, exports
+from app.api import auth, projects, permissions, data, datasets, collaboration, notifications, exports, dashboard
 
 # Créer le routeur principal
 api_router = APIRouter()
@@ -68,6 +68,7 @@ api_router.include_router(datasets.router, prefix="/datasets", tags=["Datasets"]
 api_router.include_router(collaboration.router, prefix="/collaboration", tags=["Collaboration"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(exports.router, prefix="/exports", tags=["Exports"])
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard Personnel"])
 
 # Endpoint pour lister tous les endpoints disponibles
 @api_router.get("/endpoints")

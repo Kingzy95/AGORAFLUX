@@ -59,7 +59,7 @@ def setup_logging():
         compression="zip",
     )
     
-    logger.info("📋 Système de logging configuré")
+    logger.info("Système de logging configuré")
 
 
 def get_logger(name: str):

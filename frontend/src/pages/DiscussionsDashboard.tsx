@@ -1,681 +1,661 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Filter, MessageSquare, Users, TrendingUp, Clock, ThumbsUp, MessageCircle, Pin, Eye, EyeOff, Trash2, CheckCircle, MoreVertical, Shield } from 'lucide-react';
-import apiService from '../services/api';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Button,
+  Badge,
+  Avatar,
+  AvatarFallback,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Separator,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '../components/ui';
+import apiService from '../services/api';
+import {
+  MessageSquare,
+  Search,
+  Filter,
+  ChevronDown,
+  Pin,
+  Eye,
+  EyeOff,
+  Trash2,
+  CheckCircle,
+  AlertTriangle,
+  Clock,
+  ThumbsUp,
+  Reply,
+  TrendingUp,
+  Activity,
+  Users,
+  Flag,
+  RefreshCw,
+  ExternalLink,
+  MoreHorizontal,
+  Calendar,
+  Tag
+} from 'lucide-react';
 
 interface Discussion {
   id: number;
   content: string;
-  type: string;
-  status: string;
-  project: {
-    id: number;
-    title: string;
-    slug: string;
-  };
   author: {
     id: number;
     name: string;
-    avatar: string;
     role: string;
+    avatar: string;
+  };
+  project: {
+    id: number;
+    title: string;
   };
   created_at: string;
-  updated_at: string | null;
+  updated_at: string;
+  status: 'ACTIVE' | 'HIDDEN' | 'FLAGGED' | 'DELETED';
   likes_count: number;
   replies_count: number;
-  is_edited: boolean;
+  flags_count: number;
   is_pinned: boolean;
+  is_edited: boolean;
 }
 
-interface DiscussionsData {
-  discussions: Discussion[];
-  total: number;
-  page: number;
-  per_page: number;
-  pages: number;
-  stats: {
-    total_discussions: number;
-    active_discussions: number;
-    by_type: {
-      comment: number;
-      question: number;
-      suggestion: number;
-      annotation: number;
-    };
-  };
+interface DiscussionStats {
+  total_discussions: number;
+  active_discussions: number;
+  flagged_discussions: number;
+  hidden_discussions: number;
+  total_flags: number;
+  resolved_today: number;
+  pending_moderation: number;
 }
 
 const DiscussionsDashboard: React.FC = () => {
   const { user } = useAuth();
-  const [discussions, setDiscussions] = useState<DiscussionsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
   
-  // Filtres et recherche
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedType, setSelectedType] = useState<string>('');
-  const [sortBy, setSortBy] = useState('created_at');
-  const [sortOrder, setSortOrder] = useState('desc');
+  // États
+  const [discussions, setDiscussions] = useState<Discussion[]>([]);
+  const [stats, setStats] = useState<DiscussionStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingAction, setIsLoadingAction] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  
+  // Filtres
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('created_at');
+  const [sortOrder, setSortOrder] = useState<string>('desc');
+  const [activeTab, setActiveTab] = useState('all');
 
-  // États pour les confirmations
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
-  const [showHideConfirm, setShowHideConfirm] = useState<number | null>(null);
+  // Vérification des permissions
+  const hasModeratorAccess = user?.role === 'admin' || user?.role === 'moderateur';
 
-  // Vérifier les permissions d'accès
-  const isAdmin = user?.role === 'admin';
-  const isModerator = user?.role === 'moderateur';
-  const hasAccess = isAdmin || isModerator;
+  // Chargement des données
+  const fetchDiscussions = useCallback(async () => {
+    if (!hasModeratorAccess) {
+      setError('Accès refusé. Seuls les administrateurs et modérateurs peuvent accéder à cette page.');
+      setIsLoading(false);
+      return;
+    }
 
-  const typeLabels = {
-    comment: 'Commentaire',
-    question: 'Question', 
-    suggestion: 'Suggestion',
-    annotation: 'Annotation'
-  };
-
-  const typeColors = {
-    comment: 'bg-blue-100 text-blue-800',
-    question: 'bg-yellow-100 text-yellow-800',
-    suggestion: 'bg-green-100 text-green-800',
-    annotation: 'bg-purple-100 text-purple-800'
-  };
-
-  const roleColors = {
-    admin: 'bg-red-100 text-red-700',
-    moderator: 'bg-blue-100 text-blue-700',
-    user: 'bg-gray-100 text-gray-700'
-  };
-
-  const fetchDiscussions = async () => {
     try {
-      setLoading(true);
-      const params = {
+      setError(null);
+      console.log('🔄 Chargement des discussions...');
+      
+      const response = await apiService.getAllDiscussions({
         page: currentPage,
         per_page: 20,
-        ...(selectedType && { comment_type: selectedType }),
-        ...(searchTerm && { search: searchTerm }),
+        search: searchTerm,
+        comment_type: statusFilter !== 'all' ? statusFilter : undefined,
         sort_by: sortBy,
-        sort_order: sortOrder
+        sort_order: sortOrder,
+      });
+
+      // Transformer les données pour correspondre à l'interface Discussion
+      const transformedDiscussions: Discussion[] = (response.discussions || []).map((comment: any) => ({
+        id: comment.id,
+        content: comment.content,
+        author: {
+          id: comment.author.id,
+          name: comment.author.name,
+          role: comment.author.role,
+          avatar: comment.author.avatar || `${comment.author.name.split(' ')[0]?.[0] || ''}${comment.author.name.split(' ')[1]?.[0] || ''}`,
+        },
+        project: {
+          id: comment.project.id,
+          title: comment.project.title,
+        },
+        created_at: comment.created_at,
+        updated_at: comment.updated_at,
+        status: comment.status,
+        likes_count: comment.likes_count || 0,
+        replies_count: comment.replies_count || 0,
+        flags_count: comment.flags_count || 0,
+        is_pinned: comment.is_pinned || false,
+        is_edited: comment.is_edited || false,
+      }));
+
+      setDiscussions(transformedDiscussions);
+      setTotalPages(Math.ceil((response.total || 0) / 20));
+      
+      // Calculer les stats
+      const calculatedStats: DiscussionStats = {
+        total_discussions: response.total || 0,
+        active_discussions: transformedDiscussions.filter(d => d.status === 'ACTIVE').length,
+        flagged_discussions: transformedDiscussions.filter(d => d.status === 'FLAGGED').length,
+        hidden_discussions: transformedDiscussions.filter(d => d.status === 'HIDDEN').length,
+        total_flags: transformedDiscussions.reduce((sum, d) => sum + d.flags_count, 0),
+        resolved_today: transformedDiscussions.filter(d => {
+          const today = new Date().toDateString();
+          return new Date(d.updated_at).toDateString() === today && d.status !== 'FLAGGED';
+        }).length,
+        pending_moderation: transformedDiscussions.filter(d => d.status === 'FLAGGED').length,
       };
       
-      const data = await apiService.getAllDiscussions(params);
-      setDiscussions(data);
-      setError(null);
-    } catch (err) {
-      setError('Erreur lors du chargement des discussions');
-      console.error('Erreur lors du chargement des discussions:', err);
+      setStats(calculatedStats);
+      
+      console.log('✅ Discussions chargées:', {
+        total: response.total,
+        discussions: transformedDiscussions.length,
+        flagged: calculatedStats.flagged_discussions
+      });
+      
+    } catch (err: any) {
+      console.error('❌ Erreur lors du chargement des discussions:', err);
+      setError(err.response?.data?.detail || err.message || 'Erreur lors du chargement des discussions');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  };
+  }, [currentPage, searchTerm, statusFilter, sortBy, sortOrder, hasModeratorAccess]);
 
   useEffect(() => {
     fetchDiscussions();
-  }, [currentPage, selectedType, sortBy, sortOrder]);
+  }, [fetchDiscussions]);
 
-  useEffect(() => {
-    const debounceTimer = setTimeout(() => {
-      if (currentPage === 1) {
-        fetchDiscussions();
-      } else {
-        setCurrentPage(1);
-      }
-    }, 500);
-
-    return () => clearTimeout(debounceTimer);
-  }, [searchTerm]);
-
-  // Fonctions de modération
-  const handlePinDiscussion = async (discussionId: number, isPinned: boolean) => {
-    try {
-      const projectId = discussions?.discussions.find(d => d.id === discussionId)?.project.id;
-      if (!projectId) return;
-
-      const action = isPinned ? 'unpin' : 'pin';
-      await apiService.moderateComment(projectId, discussionId, action);
-      
-      // Mise à jour locale immédiate
-      setDiscussions(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          discussions: prev.discussions.map(d => 
-            d.id === discussionId ? { ...d, is_pinned: !isPinned } : d
-          )
-        };
-      });
-
-      // Recharger pour obtenir la dernière version
-      await fetchDiscussions();
-    } catch (error) {
-      console.error('Erreur lors de l\'épinglage:', error);
-      alert('Erreur lors de l\'épinglage du commentaire');
-    }
-  };
-
-  const handleHideDiscussion = async (discussionId: number) => {
-    try {
-      const discussion = discussions?.discussions.find(d => d.id === discussionId);
-      if (!discussion) return;
-
-      const reason = prompt('Raison du masquage (optionnel):') || '';
-      await apiService.hideComment(discussion.project.id, discussionId, reason);
-      
-      // Retirer de la liste locale immédiatement
-      setDiscussions(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          discussions: prev.discussions.filter(d => d.id !== discussionId),
-          total: prev.total - 1
-        };
-      });
-
-      setShowHideConfirm(null);
-    } catch (error) {
-      console.error('Erreur lors du masquage:', error);
-      alert('Erreur lors du masquage du commentaire');
-    }
-  };
-
-  const handleDeleteDiscussion = async (discussionId: number) => {
-    try {
-      const discussion = discussions?.discussions.find(d => d.id === discussionId);
-      if (!discussion) return;
-
-      const reason = prompt('Raison de la suppression (obligatoire):');
-      if (!reason?.trim()) {
-        alert('Une raison est requise pour la suppression définitive');
-        return;
-      }
-
-      await apiService.deleteCommentPermanently(discussion.project.id, discussionId, reason);
-      
-      // Retirer de la liste locale immédiatement
-      setDiscussions(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          discussions: prev.discussions.filter(d => d.id !== discussionId),
-          total: prev.total - 1
-        };
-      });
-
-      setShowDeleteConfirm(null);
-    } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
-      alert('Erreur lors de la suppression du commentaire');
-    }
-  };
-
-  const handleResolveDiscussion = async (discussionId: number) => {
-    try {
-      const discussion = discussions?.discussions.find(d => d.id === discussionId);
-      if (!discussion) return;
-
-      const reason = prompt('Raison de la résolution (optionnel):') || '';
-      await apiService.resolveComment(discussion.project.id, discussionId, reason);
-      
-      // Mise à jour locale pour marquer comme résolu
-      setDiscussions(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          discussions: prev.discussions.map(d => 
-            d.id === discussionId ? { ...d, status: 'resolved' } : d
-          )
-        };
-      });
-
-      // Recharger pour obtenir la dernière version
-      await fetchDiscussions();
-    } catch (error) {
-      console.error('Erreur lors de la résolution:', error);
-      alert('Erreur lors de la résolution de la discussion');
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+  // Actions de modération
+  const handleModerationAction = async (action: string, discussionId: number) => {
+    const discussion = discussions.find(d => d.id === discussionId);
+    if (!discussion) return;
     
-    if (diffInMinutes < 1) return 'À l\'instant';
-    if (diffInMinutes < 60) return `Il y a ${diffInMinutes} min`;
-    if (diffInMinutes < 1440) return `Il y a ${Math.floor(diffInMinutes / 60)} h`;
-    if (diffInMinutes < 10080) return `Il y a ${Math.floor(diffInMinutes / 1440)} j`;
+    setIsLoadingAction(`${action}-${discussionId}`);
     
-    return date.toLocaleDateString('fr-FR', {
-      day: 'numeric',
-      month: 'short',
-      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-    });
-  };
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (currentPage === 1) {
-      fetchDiscussions();
-    } else {
-      setCurrentPage(1);
+    try {
+      switch (action) {
+        case 'pin':
+          await apiService.pinComment(discussion.project.id, discussionId);
+          break;
+        case 'hide':
+          await apiService.hideComment(discussion.project.id, discussionId);
+          break;
+        case 'show':
+          await apiService.showComment(discussion.project.id, discussionId);
+          break;
+        case 'resolve':
+          await apiService.resolveComment(discussion.project.id, discussionId);
+          break;
+        case 'delete':
+          if (window.confirm('Êtes-vous sûr de vouloir supprimer définitivement cette discussion ?')) {
+            await apiService.deleteCommentPermanently(discussion.project.id, discussionId);
+          } else {
+            return;
+          }
+          break;
+      }
+      
+      // Actualiser les données
+      await fetchDiscussions();
+      
+    } catch (err: any) {
+      console.error(`❌ Erreur lors de l'action ${action}:`, err);
+      setError(err.response?.data?.detail || err.message || `Erreur lors de l'action ${action}`);
+    } finally {
+      setIsLoadingAction(null);
     }
   };
 
-  // Vérification d'accès après tous les hooks
-  if (!hasAccess) {
+  const getStatusBadge = (discussion: Discussion) => {
+    const { status, flags_count, is_pinned } = discussion;
+    
+    if (is_pinned) {
+      return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300"><Pin className="h-3 w-3 mr-1" />Épinglé</Badge>;
+    }
+    
+    switch (status) {
+      case 'ACTIVE':
+        return <Badge variant="secondary" className="bg-green-100 text-green-800">Actif</Badge>;
+      case 'HIDDEN':
+        return <Badge variant="secondary" className="bg-gray-100 text-gray-800">Masqué</Badge>;
+      case 'FLAGGED':
+        return <Badge variant="destructive"><Flag className="h-3 w-3 mr-1" />Signalé ({flags_count})</Badge>;
+      case 'DELETED':
+        return <Badge variant="destructive" className="bg-red-100 text-red-800">Supprimé</Badge>;
+      default:
+        return null;
+    }
+  };
+
+  const getTabCounts = () => {
+    if (!discussions.length) return {};
+    
+    return {
+      all: discussions.length,
+      flagged: discussions.filter(d => d.status === 'FLAGGED').length,
+      hidden: discussions.filter(d => d.status === 'HIDDEN').length,
+      active: discussions.filter(d => d.status === 'ACTIVE').length,
+    };
+  };
+
+  const filteredDiscussions = discussions.filter(discussion => {
+    if (activeTab === 'flagged' && discussion.status !== 'FLAGGED') return false;
+    if (activeTab === 'hidden' && discussion.status !== 'HIDDEN') return false;
+    if (activeTab === 'active' && discussion.status !== 'ACTIVE') return false;
+    return true;
+  });
+
+  if (!hasModeratorAccess) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 text-red-500">
-            <svg className="w-full h-full" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-semibold mb-2 text-gray-900">Accès Restreint</h2>
-          <p className="text-gray-600 mb-4">
-            Cette page est réservée aux modérateurs et administrateurs.
-          </p>
-          <p className="text-sm text-gray-500">
-            Votre rôle actuel : <span className="font-medium">{user?.role || 'Non connecté'}</span>
-          </p>
-        </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle className="text-destructive">Accès Refusé</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600 mb-4">
+              Seuls les administrateurs et modérateurs peuvent accéder au tableau de bord des discussions.
+            </p>
+            <Button onClick={() => navigate('/dashboard')} variant="outline">
+              Retour au Dashboard
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  if (loading && !discussions) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <p className="text-red-600">{error}</p>
-            <button 
-              onClick={fetchDiscussions}
-              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              Réessayer
-            </button>
-          </div>
-        </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-3 text-gray-600">Chargement des discussions...</span>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                <MessageSquare className="h-8 w-8 text-blue-600" />
-                Dashboard Discussions
-              </h1>
-              <p className="text-gray-600 mt-2">
-                Centralisez et gérez toutes les conversations de la plateforme
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard Modération</h1>
+          <p className="text-gray-600">
+            Gérez les discussions et modérez le contenu de la communauté
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={fetchDiscussions} variant="outline" size="sm">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Actualiser
+          </Button>
+        </div>
+      </div>
+
+      {/* Statistiques */}
+      {stats && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Discussions</CardTitle>
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.total_discussions}</div>
+              <p className="text-xs text-muted-foreground">
+                {stats.active_discussions} actives
               </p>
-            </div>
-            
-            {user?.role === 'admin' && (
-              <div className="flex gap-3">
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  Modération
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+            </CardContent>
+          </Card>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Statistiques */}
-        {discussions?.stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-lg p-6 shadow-sm border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Discussions</p>
-                  <p className="text-3xl font-bold text-gray-900">{discussions.stats.total_discussions}</p>
-                </div>
-                <MessageSquare className="h-8 w-8 text-blue-600" />
-              </div>
-            </div>
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">En Attente</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{stats.pending_moderation}</div>
+              <p className="text-xs text-muted-foreground">
+                {stats.flagged_discussions} signalées
+              </p>
+            </CardContent>
+          </Card>
 
-            <div className="bg-white rounded-lg p-6 shadow-sm border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Discussions Actives</p>
-                  <p className="text-3xl font-bold text-green-600">{discussions.stats.active_discussions}</p>
-                </div>
-                <TrendingUp className="h-8 w-8 text-green-600" />
-              </div>
-            </div>
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Traitées Aujourd'hui</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{stats.resolved_today}</div>
+              <p className="text-xs text-muted-foreground">
+                discussions résolues
+              </p>
+            </CardContent>
+          </Card>
 
-            <div className="bg-white rounded-lg p-6 shadow-sm border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Questions</p>
-                  <p className="text-3xl font-bold text-yellow-600">{discussions.stats.by_type.question}</p>
-                </div>
-                <div className="h-8 w-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                  <span className="text-yellow-600 font-bold">?</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg p-6 shadow-sm border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Suggestions</p>
-                  <p className="text-3xl font-bold text-purple-600">{discussions.stats.by_type.suggestion}</p>
-                </div>
-                <div className="h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center">
-                  <span className="text-purple-600 font-bold">!</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Filtres et recherche */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
-          <div className="flex flex-col lg:flex-row gap-4 items-center">
-            <form onSubmit={handleSearch} className="flex-1 w-full lg:w-auto">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                <input
-                  type="text"
-                  placeholder="Rechercher dans les discussions..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </form>
-
-            <div className="flex gap-4 w-full lg:w-auto">
-              <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Tous les types</option>
-                <option value="comment">Commentaires</option>
-                <option value="question">Questions</option>
-                <option value="suggestion">Suggestions</option>
-                <option value="annotation">Annotations</option>
-              </select>
-
-              <select
-                value={`${sortBy}-${sortOrder}`}
-                onChange={(e) => {
-                  const [newSortBy, newSortOrder] = e.target.value.split('-');
-                  setSortBy(newSortBy);
-                  setSortOrder(newSortOrder);
-                }}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="created_at-desc">Plus récent</option>
-                <option value="created_at-asc">Plus ancien</option>
-                <option value="likes_count-desc">Plus de likes</option>
-                <option value="replies_count-desc">Plus de réponses</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Liste des discussions */}
-        <div className="space-y-4">
-          {discussions?.discussions.map((discussion) => (
-            <div key={discussion.id} className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow">
-              <div className="p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${typeColors[discussion.type as keyof typeof typeColors] || 'bg-gray-100 text-gray-800'}`}>
-                        {typeLabels[discussion.type as keyof typeof typeLabels] || discussion.type}
-                      </span>
-                      
-                      {discussion.is_pinned && (
-                        <Pin className="h-4 w-4 text-amber-500" />
-                      )}
-                      
-                      <span className="text-sm text-gray-500">
-                        dans{' '}
-                        <span className="font-medium text-blue-600 hover:text-blue-700 cursor-pointer">
-                          {discussion.project.title}
-                        </span>
-                      </span>
-                    </div>
-
-                    <p className="text-gray-900 mb-4 line-clamp-3">
-                      {discussion.content}
-                    </p>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                            {discussion.author.avatar}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{discussion.author.name}</p>
-                            <p className="text-xs text-gray-500">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${roleColors[discussion.author.role as keyof typeof roleColors] || 'bg-gray-100 text-gray-700'}`}>
-                                {discussion.author.role}
-                              </span>
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-6 text-sm text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <ThumbsUp className="h-4 w-4" />
-                          <span>{discussion.likes_count}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <MessageCircle className="h-4 w-4" />
-                          <span>{discussion.replies_count}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          <span>{formatDate(discussion.created_at)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions de modération */}
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handlePinDiscussion(discussion.id, discussion.is_pinned)}
-                            className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                              discussion.is_pinned 
-                                ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' 
-                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                            }`}
-                          >
-                            <Pin className="h-3 w-3" />
-                            {discussion.is_pinned ? 'Désépingler' : 'Épingler'}
-                          </button>
-
-                          <button
-                            onClick={() => handleResolveDiscussion(discussion.id)}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-green-300 text-green-700 bg-green-50 hover:bg-green-100 transition-colors"
-                          >
-                            <CheckCircle className="h-3 w-3" />
-                            Résoudre
-                          </button>
-
-                          {isAdmin && (
-                            <>
-                              <button
-                                onClick={() => setShowHideConfirm(discussion.id)}
-                                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-yellow-300 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-colors"
-                              >
-                                <EyeOff className="h-3 w-3" />
-                                Masquer
-                              </button>
-
-                              <button
-                                onClick={() => setShowDeleteConfirm(discussion.id)}
-                                className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-300 text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                                Supprimer
-                              </button>
-                            </>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            discussion.status === 'resolved' 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-blue-100 text-blue-800'
-                          }`}>
-                            {discussion.status === 'resolved' ? 'Résolu' : 'Actif'}
-                          </span>
-                          
-                          {(isAdmin || isModerator) && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                              <Shield className="h-3 w-3 mr-1" />
-                              {isAdmin ? 'Admin' : 'Modérateur'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Pagination */}
-        {discussions && discussions.pages > 1 && (
-          <div className="flex justify-center mt-8">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Précédent
-              </button>
-              
-              <div className="flex gap-1">
-                {Array.from({ length: Math.min(5, discussions.pages) }, (_, i) => {
-                  const pageNum = i + 1;
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-2 text-sm font-medium ${
-                        currentPage === pageNum
-                          ? 'text-blue-600 bg-blue-50 border-blue-500'
-                          : 'text-gray-500 bg-white border-gray-300 hover:bg-gray-50'
-                      } border`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-              </div>
-              
-              <button
-                onClick={() => setCurrentPage(Math.min(discussions.pages, currentPage + 1))}
-                disabled={currentPage === discussions.pages}
-                className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Suivant
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Message si aucune discussion */}
-        {discussions?.discussions.length === 0 && (
-          <div className="text-center py-12">
-            <MessageSquare className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-4 text-lg font-medium text-gray-900">Aucune discussion trouvée</h3>
-            <p className="mt-2 text-gray-500">
-              {searchTerm || selectedType 
-                ? 'Essayez de modifier vos critères de recherche'
-                : 'Les discussions apparaîtront ici une fois créées'
-              }
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Modales de confirmation */}
-      {showHideConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Confirmer le masquage</h3>
-            <p className="text-gray-600 mb-6">
-              Êtes-vous sûr de vouloir masquer cette discussion ? Elle ne sera plus visible dans le projet mais restera accessible via le dashboard de modération.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowHideConfirm(null)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={() => handleHideDiscussion(showHideConfirm)}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
-              >
-                Masquer
-              </button>
-            </div>
-          </div>
+          <Card className="hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Signalements</CardTitle>
+              <Flag className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{stats.total_flags}</div>
+              <p className="text-xs text-muted-foreground">
+                {stats.hidden_discussions} masquées
+              </p>
+            </CardContent>
+          </Card>
         </div>
       )}
 
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4 text-red-600">Confirmer la suppression</h3>
-            <p className="text-gray-600 mb-6">
-              <strong>Attention :</strong> Cette action est irréversible. La discussion sera définitivement supprimée et ne pourra pas être restaurée.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowDeleteConfirm(null)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={() => handleDeleteDiscussion(showDeleteConfirm)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Supprimer définitivement
-              </button>
+      {/* Filtres et Recherche */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filtres et Recherche</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Rechercher dans les discussions..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les statuts</SelectItem>
+                <SelectItem value="ACTIVE">Actives</SelectItem>
+                <SelectItem value="FLAGGED">Signalées</SelectItem>
+                <SelectItem value="HIDDEN">Masquées</SelectItem>
+                <SelectItem value="DELETED">Supprimées</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Trier par" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created_at">Plus récentes</SelectItem>
+                <SelectItem value="likes_count">Plus aimées</SelectItem>
+                <SelectItem value="replies_count">Plus de réponses</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortOrder} onValueChange={setSortOrder}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Ordre" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="desc">Descendant</SelectItem>
+                <SelectItem value="asc">Ascendant</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </div>
+        </CardContent>
+      </Card>
+
+      {/* Onglets et Liste des Discussions */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Discussions</CardTitle>
+          <CardDescription>
+            Gérez et modérez les discussions de la communauté
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="all">
+                Toutes ({getTabCounts().all || 0})
+              </TabsTrigger>
+              <TabsTrigger value="flagged" className="text-red-600">
+                Signalées ({getTabCounts().flagged || 0})
+              </TabsTrigger>
+              <TabsTrigger value="hidden" className="text-gray-600">
+                Masquées ({getTabCounts().hidden || 0})
+              </TabsTrigger>
+              <TabsTrigger value="active" className="text-green-600">
+                Actives ({getTabCounts().active || 0})
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value={activeTab} className="mt-6">
+              <div className="space-y-4">
+                {filteredDiscussions.length === 0 ? (
+                  <div className="text-center py-8">
+                    <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500">Aucune discussion trouvée</p>
+                  </div>
+                ) : (
+                  filteredDiscussions.map((discussion) => (
+                    <Card key={discussion.id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between">
+                          {/* Contenu principal */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 mb-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarFallback>{discussion.author.avatar}</AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{discussion.author.name}</span>
+                                  <Badge variant="outline" className="text-xs">
+                                    {discussion.author.role}
+                                  </Badge>
+                                  {getStatusBadge(discussion)}
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                  <span>dans</span>
+                                  <Button
+                                    variant="link"
+                                    className="p-0 h-auto text-sm text-blue-600 hover:text-blue-800"
+                                    onClick={() => navigate(`/projects/${discussion.project.id}`)}
+                                  >
+                                    {discussion.project.title}
+                                    <ExternalLink className="h-3 w-3 ml-1" />
+                                  </Button>
+                                  <span>•</span>
+                                  <Calendar className="h-3 w-3" />
+                                  <span>{new Date(discussion.created_at).toLocaleDateString('fr-FR')}</span>
+                                  {discussion.is_edited && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-gray-400">modifié</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <p className="text-gray-700 mb-4 line-clamp-3">
+                              {discussion.content}
+                            </p>
+                            
+                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                              <div className="flex items-center gap-1">
+                                <ThumbsUp className="h-4 w-4" />
+                                <span>{discussion.likes_count}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Reply className="h-4 w-4" />
+                                <span>{discussion.replies_count}</span>
+                              </div>
+                              {discussion.flags_count > 0 && (
+                                <div className="flex items-center gap-1 text-red-500">
+                                  <Flag className="h-4 w-4" />
+                                  <span>{discussion.flags_count} signalement(s)</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Actions de modération */}
+                          <div className="ml-4">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => navigate(`/projects/${discussion.project.id}#comment-${discussion.id}`)}
+                                >
+                                  <ExternalLink className="h-4 w-4 mr-2" />
+                                  Voir sur le projet
+                                </DropdownMenuItem>
+                                
+                                <Separator />
+                                
+                                {!discussion.is_pinned ? (
+                                  <DropdownMenuItem
+                                    onClick={() => handleModerationAction('pin', discussion.id)}
+                                    disabled={isLoadingAction === `pin-${discussion.id}`}
+                                  >
+                                    <Pin className="h-4 w-4 mr-2" />
+                                    Épingler
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem
+                                    onClick={() => handleModerationAction('pin', discussion.id)}
+                                    disabled={isLoadingAction === `pin-${discussion.id}`}
+                                  >
+                                    <Pin className="h-4 w-4 mr-2" />
+                                    Désépingler
+                                  </DropdownMenuItem>
+                                )}
+                                
+                                {discussion.status === 'ACTIVE' ? (
+                                  <DropdownMenuItem
+                                    onClick={() => handleModerationAction('hide', discussion.id)}
+                                    disabled={isLoadingAction === `hide-${discussion.id}`}
+                                  >
+                                    <EyeOff className="h-4 w-4 mr-2" />
+                                    Masquer
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem
+                                    onClick={() => handleModerationAction('show', discussion.id)}
+                                    disabled={isLoadingAction === `show-${discussion.id}`}
+                                  >
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    Afficher
+                                  </DropdownMenuItem>
+                                )}
+                                
+                                {discussion.status === 'FLAGGED' && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleModerationAction('resolve', discussion.id)}
+                                    disabled={isLoadingAction === `resolve-${discussion.id}`}
+                                  >
+                                    <CheckCircle className="h-4 w-4 mr-2" />
+                                    Résoudre
+                                  </DropdownMenuItem>
+                                )}
+                                
+                                <Separator />
+                                
+                                <DropdownMenuItem
+                                  onClick={() => handleModerationAction('delete', discussion.id)}
+                                  disabled={isLoadingAction === `delete-${discussion.id}`}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Supprimer définitivement
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-600">
+                Page {currentPage} sur {totalPages}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Précédent
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Suivant
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Affichage des erreurs */}
+      {error && (
+        <Card className="border-destructive">
+          <CardHeader>
+            <CardTitle className="text-destructive">Erreur</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-destructive mb-4">{error}</p>
+            <Button onClick={() => setError(null)} variant="outline">
+              Fermer
+            </Button>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

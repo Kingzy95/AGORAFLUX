@@ -9,6 +9,20 @@ from datetime import datetime
 from app.models.user import UserRole
 
 
+class UserRoleUpdate(BaseModel):
+    """
+    Schéma pour la mise à jour du rôle d'un utilisateur
+    """
+    role: UserRole = Field(..., description="Nouveau rôle de l'utilisateur")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "role": "moderateur"
+            }
+        }
+
+
 class LoginRequest(BaseModel):
     """
     Schéma pour la requête de connexion

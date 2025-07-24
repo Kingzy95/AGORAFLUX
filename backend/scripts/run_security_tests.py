@@ -36,10 +36,10 @@ class SecurityTestSuite:
         try:
             print(f"   🧪 {test_name}...", end=" ")
             test_func()
-            print("✅")
+            print("")
             self.tests_passed += 1
         except Exception as e:
-            print(f"❌ {str(e)}")
+            print(f" {str(e)}")
             self.tests_failed += 1
             if "--verbose" in sys.argv:
                 traceback.print_exc()
@@ -288,7 +288,7 @@ class SecurityTestSuite:
             print()
             
         except Exception as e:
-            print(f"❌ Erreur fatale : {e}")
+            print(f" Erreur fatale : {e}")
             if "--verbose" in sys.argv:
                 traceback.print_exc()
         
@@ -301,8 +301,8 @@ class SecurityTestSuite:
         
         print("=" * 60)
         print("📊 RÉSULTATS DES TESTS")
-        print(f"   ✅ Tests réussis : {self.tests_passed}")
-        print(f"   ❌ Tests échoués : {self.tests_failed}")
+        print(f"    Tests réussis : {self.tests_passed}")
+        print(f"    Tests échoués : {self.tests_failed}")
         print(f"   📈 Taux de réussite : {success_rate:.1f}%")
         
         if self.tests_failed == 0:

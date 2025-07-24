@@ -1,438 +1,809 @@
-import React, { useState, useEffect } from 'react';
-import { Users, UserCheck, Star, Clock, Activity, Award, TrendingUp, UserPlus, Eye, Search, Filter } from 'lucide-react';
-import apiService from '../services/api';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Button,
+  Badge,
+  Avatar,
+  AvatarFallback,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Progress,
+  Separator,
+} from '../components/ui';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  Tooltip,
+  Legend
+} from 'recharts';
+import apiService from '../services/api';
+import {
+  Users,
+  UserCheck,
+  Crown,
+  Award,
+  TrendingUp,
+  Activity,
+  MessageSquare,
+  FolderOpen,
+  Database,
+  Star,
+  Calendar,
+  Trophy,
+  Target,
+  RefreshCw,
+  Search,
+  Filter,
+  ChevronUp,
+  ChevronDown,
+  ExternalLink,
+  Zap,
+  BarChart3,
+  Globe
+} from 'lucide-react';
 
-interface CommunityMember {
+interface User {
   id: number;
-  name: string;
-  avatar: string;
+  first_name: string;
+  last_name: string;
   role: string;
-  bio?: string;
+  is_active: boolean;
+  last_login: string | null;
   created_at: string;
-  last_login?: string;
-  days_since_creation: number;
-  days_since_last_login?: number;
+  projects_count: number;
+  datasets_count: number;
+  comments_count: number;
+  total_contributions: number;
   is_online: boolean;
-  stats: {
-    projects_count: number;
-    datasets_count: number;
-    comments_count: number;
-    total_contributions: number;
-  };
 }
 
-interface CommunityData {
-  community_stats: {
-    total_users: number;
-    active_users_30d: number;
-    new_users_7d: number;
-    online_users: number;
-    by_role: { [role: string]: number };
-    avg_contributions: number;
-  };
-  members: CommunityMember[];
-  top_contributors: CommunityMember[];
-  online_users: CommunityMember[];
-  pagination: {
-    total: number;
-    page: number;
-    per_page: number;
-    pages: number;
+interface CommunityStats {
+  total_members: number;
+  active_users: number;
+  new_users_this_month: number;
+  online_users: number;
+  average_contributions: number;
+  top_contributors: User[];
+  members: User[];
+  role_distribution: {
+    admin: number;
+    moderateur: number;
+    utilisateur: number;
   };
 }
 
 const CommunityDashboard: React.FC = () => {
   const { user } = useAuth();
-  const [communityData, setCommunityData] = useState<CommunityData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
   
-  // Filtres et tri
-  const [sortBy, setSortBy] = useState('contributions');
-  const [sortOrder, setSortOrder] = useState('desc');
+  // États
+  const [communityData, setCommunityData] = useState<CommunityStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
+  
+  // Filtres
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('contributions');
+  const [sortOrder, setSortOrder] = useState<string>('desc');
+  const [activeTab, setActiveTab] = useState('overview');
 
-  const roleLabels = {
-    admin: 'Administrateur',
-    moderator: 'Modérateur',
-    user: 'Utilisateur'
-  };
-
-  const roleColors = {
-    admin: 'bg-red-100 text-red-800 border-red-200',
-    moderator: 'bg-blue-100 text-blue-800 border-blue-200',
-    user: 'bg-gray-100 text-gray-800 border-gray-200'
-  };
-
-  const fetchCommunityData = async () => {
+  // Chargement des données
+  const fetchCommunityData = useCallback(async () => {
     try {
-      setLoading(true);
-      const params = {
-        page: currentPage,
-        per_page: 20,
-        sort_by: sortBy,
-        sort_order: sortOrder
-      };
-      
-      const data = await apiService.getCommunityStats(params);
-      setCommunityData(data);
       setError(null);
-    } catch (err) {
-      setError('Erreur lors du chargement des données de la communauté');
-      console.error('Erreur lors du chargement de la communauté:', err);
+      console.log('🔄 Chargement des données communautaires...');
+      
+      const response = await apiService.getCommunityStats({
+        page: currentPage,
+        per_page: itemsPerPage,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      });
+
+      // Transformer la réponse API pour correspondre à notre interface
+      const transformedData: CommunityStats = {
+        total_members: response.community_stats.total_users,
+        active_users: response.community_stats.active_users_30d,
+        new_users_this_month: response.community_stats.new_users_7d,
+        online_users: response.community_stats.online_users,
+        average_contributions: response.community_stats.avg_contributions,
+        top_contributors: (response.top_contributors || []).map((member: any) => ({
+          id: member.id,
+          first_name: member.name.split(' ')[0] || '',
+          last_name: member.name.split(' ').slice(1).join(' ') || '',
+          role: member.role,
+          is_active: true,
+          last_login: member.last_login,
+          created_at: member.created_at,
+          projects_count: member.stats.projects_count,
+          datasets_count: member.stats.datasets_count,
+          comments_count: member.stats.comments_count,
+          total_contributions: member.stats.total_contributions,
+          is_online: member.is_online,
+        })),
+        members: (response.members || []).map((member: any) => ({
+          id: member.id,
+          first_name: member.name.split(' ')[0] || '',
+          last_name: member.name.split(' ').slice(1).join(' ') || '',
+          role: member.role,
+          is_active: true,
+          last_login: member.last_login,
+          created_at: member.created_at,
+          projects_count: member.stats.projects_count,
+          datasets_count: member.stats.datasets_count,
+          comments_count: member.stats.comments_count,
+          total_contributions: member.stats.total_contributions,
+          is_online: member.is_online,
+        })),
+        role_distribution: {
+          admin: response.community_stats.by_role.admin || 0,
+          moderateur: response.community_stats.by_role.moderateur || 0,
+          utilisateur: response.community_stats.by_role.utilisateur || 0,
+        }
+      };
+
+      setCommunityData(transformedData);
+      setTotalPages(Math.ceil((transformedData.total_members || 0) / itemsPerPage));
+      
+      console.log('✅ Données communautaires chargées:', {
+        total_members: transformedData.total_members,
+        active_users: transformedData.active_users,
+        top_contributors: transformedData.top_contributors?.length || 0
+      });
+      
+    } catch (err: any) {
+      console.error('❌ Erreur lors du chargement des données communautaires:', err);
+      setError(err.response?.data?.detail || err.message || 'Erreur lors du chargement des données');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  };
+  }, [currentPage, itemsPerPage, searchTerm, roleFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchCommunityData();
-  }, [currentPage, sortBy, sortOrder]);
+  }, [fetchCommunityData]);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
+  // Fonction d'aide
+  const getUserDisplayName = (user: User) => `${user.first_name} ${user.last_name}`;
+  
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
+      case 'admin': return 'Administrateur';
+      case 'moderateur': return 'Modérateur';
+      case 'utilisateur': return 'Contributeur';
+      default: return role;
+    }
+  };
+  
+  const getRoleBadgeVariant = (role: string) => {
+    switch (role) {
+      case 'admin': return 'default';
+      case 'moderateur': return 'secondary';
+      default: return 'outline';
+    }
   };
 
-  const formatLastSeen = (days?: number) => {
-    if (days === undefined || days === null) return 'Jamais connecté';
-    if (days === 0) return 'En ligne';
-    if (days === 1) return 'Il y a 1 jour';
-    if (days < 7) return `Il y a ${days} jours`;
-    if (days < 30) return `Il y a ${Math.floor(days / 7)} semaine${Math.floor(days / 7) > 1 ? 's' : ''}`;
-    return `Il y a ${Math.floor(days / 30)} mois`;
+  const getContributionLevel = (contributions: number) => {
+    if (contributions >= 50) return { label: 'Expert', color: 'text-purple-600', bgColor: 'bg-purple-100' };
+    if (contributions >= 20) return { label: 'Avancé', color: 'text-blue-600', bgColor: 'bg-blue-100' };
+    if (contributions >= 10) return { label: 'Intermédiaire', color: 'text-green-600', bgColor: 'bg-green-100' };
+    if (contributions >= 5) return { label: 'Débutant', color: 'text-yellow-600', bgColor: 'bg-yellow-100' };
+    return { label: 'Nouveau', color: 'text-gray-600', bgColor: 'bg-gray-100' };
   };
 
-  if (loading && !communityData) {
+  const filteredMembers = communityData?.members?.filter(member => {
+    const matchesSearch = searchTerm === '' || 
+      getUserDisplayName(member).toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = roleFilter === 'all' || member.role === roleFilter;
+    const matchesStatus = statusFilter === 'all' || 
+      (statusFilter === 'online' && member.is_online) ||
+      (statusFilter === 'active' && member.is_active);
+    
+    return matchesSearch && matchesRole && matchesStatus;
+  }) || [];
+
+  // Données pour les graphiques
+  const roleDistributionData = communityData ? [
+    { name: 'Administrateurs', value: communityData.role_distribution.admin, color: '#8b5cf6' },
+    { name: 'Modérateurs', value: communityData.role_distribution.moderateur, color: '#3b82f6' },
+    { name: 'Contributeurs', value: communityData.role_distribution.utilisateur, color: '#10b981' }
+  ] : [];
+
+  const contributionDistributionData = communityData?.members ? 
+    [
+      { level: 'Nouveaux (0-4)', count: communityData.members.filter(m => m.total_contributions < 5).length },
+      { level: 'Débutants (5-9)', count: communityData.members.filter(m => m.total_contributions >= 5 && m.total_contributions < 10).length },
+      { level: 'Intermédiaires (10-19)', count: communityData.members.filter(m => m.total_contributions >= 10 && m.total_contributions < 20).length },
+      { level: 'Avancés (20-49)', count: communityData.members.filter(m => m.total_contributions >= 20 && m.total_contributions < 50).length },
+      { level: 'Experts (50+)', count: communityData.members.filter(m => m.total_contributions >= 50).length }
+    ] : [];
+
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
-          </div>
-        </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span className="ml-3 text-gray-600">Chargement de la communauté...</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <p className="text-red-600">{error}</p>
-            <button 
-              onClick={fetchCommunityData}
-              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
+      <div className="p-6">
+        <Card className="border-destructive">
+          <CardHeader>
+            <CardTitle className="text-destructive">Erreur de chargement</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-destructive mb-4">{error}</p>
+            <Button onClick={fetchCommunityData} variant="outline">
+              <RefreshCw className="mr-2 h-4 w-4" />
               Réessayer
-            </button>
-          </div>
-        </div>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!communityData) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-center text-gray-500">Aucune donnée communautaire disponible</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                <Users className="h-8 w-8 text-blue-600" />
-                Dashboard Community
-              </h1>
-              <p className="text-gray-600 mt-2">
-                Découvrez les membres actifs de la communauté AgoraFlux
-              </p>
-            </div>
-            
-            <div className="flex gap-3">
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
-                <UserPlus className="h-4 w-4" />
-                Inviter
-              </button>
-            </div>
-          </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Communauté AgoraFlux</h1>
+          <p className="text-gray-600">
+            Découvrez les membres actifs et les statistiques de notre communauté
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={fetchCommunityData} variant="outline" size="sm">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Actualiser
+          </Button>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Statistiques générales */}
-        {communityData?.community_stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-lg p-6 shadow-sm border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Membres Total</p>
-                  <p className="text-3xl font-bold text-gray-900">{communityData.community_stats.total_users}</p>
-                </div>
-                <Users className="h-8 w-8 text-blue-600" />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg p-6 shadow-sm border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Actifs (30j)</p>
-                  <p className="text-3xl font-bold text-green-600">{communityData.community_stats.active_users_30d}</p>
-                </div>
-                <Activity className="h-8 w-8 text-green-600" />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg p-6 shadow-sm border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Nouveaux (7j)</p>
-                  <p className="text-3xl font-bold text-purple-600">{communityData.community_stats.new_users_7d}</p>
-                </div>
-                <UserPlus className="h-8 w-8 text-purple-600" />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg p-6 shadow-sm border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">En ligne</p>
-                  <p className="text-3xl font-bold text-emerald-600">{communityData.community_stats.online_users}</p>
-                </div>
-                <div className="h-8 w-8 bg-emerald-100 rounded-full flex items-center justify-center">
-                  <div className="h-4 w-4 bg-emerald-500 rounded-full animate-pulse"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Colonne principale - Liste des membres */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Filtres et tri */}
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">Membres de la communauté</h2>
-                
-                <div className="flex gap-3">
-                  <select
-                    value={`${sortBy}-${sortOrder}`}
-                    onChange={(e) => {
-                      const [newSortBy, newSortOrder] = e.target.value.split('-');
-                      setSortBy(newSortBy);
-                      setSortOrder(newSortOrder);
-                    }}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="contributions-desc">Plus de contributions</option>
-                    <option value="contributions-asc">Moins de contributions</option>
-                    <option value="projects-desc">Plus de projets</option>
-                    <option value="comments-desc">Plus de commentaires</option>
-                    <option value="created_at-desc">Plus récents</option>
-                    <option value="created_at-asc">Plus anciens</option>
-                    <option value="last_login-desc">Dernière connexion</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Liste des membres */}
-            <div className="space-y-4">
-              {communityData?.members.map((member) => (
-                <div key={member.id} className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow">
-                  <div className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4">
-                        <div className="relative">
-                          <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white text-lg font-semibold">
-                            {member.avatar}
-                          </div>
-                          {member.is_online && (
-                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
-                          )}
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="text-lg font-semibold text-gray-900 truncate">{member.name}</h3>
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${roleColors[member.role as keyof typeof roleColors] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
-                              {roleLabels[member.role as keyof typeof roleLabels] || member.role}
-                            </span>
-                          </div>
-                          
-                          {member.bio && (
-                            <p className="text-gray-600 mb-3 line-clamp-2">{member.bio}</p>
-                          )}
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-500">
-                            <div className="flex items-center gap-1">
-                              <Star className="h-4 w-4" />
-                              <span>{member.stats.total_contributions} contributions</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Eye className="h-4 w-4" />
-                              <span>{member.stats.projects_count} projets</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Users className="h-4 w-4" />
-                              <span>{member.stats.comments_count} commentaires</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-4 w-4" />
-                              <span>{formatLastSeen(member.days_since_last_login)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Pagination */}
-            {communityData && communityData.pagination.pages > 1 && (
-              <div className="flex justify-center mt-8">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-l-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Précédent
-                  </button>
-                  
-                  <div className="flex gap-1">
-                    {Array.from({ length: Math.min(5, communityData.pagination.pages) }, (_, i) => {
-                      const pageNum = i + 1;
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-2 text-sm font-medium ${
-                            currentPage === pageNum
-                              ? 'text-blue-600 bg-blue-50 border-blue-500'
-                              : 'text-gray-500 bg-white border-gray-300 hover:bg-gray-50'
-                          } border`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  
-                  <button
-                    onClick={() => setCurrentPage(Math.min(communityData.pagination.pages, currentPage + 1))}
-                    disabled={currentPage === communityData.pagination.pages}
-                    className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Suivant
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Sidebar droite */}
-          <div className="space-y-6">
-            {/* Top contributeurs */}
-            {communityData?.top_contributors && communityData.top_contributors.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <Award className="h-5 w-5 text-yellow-500" />
-                  Top Contributeurs
-                </h3>
-                <div className="space-y-3">
-                  {communityData.top_contributors.slice(0, 5).map((contributor, index) => (
-                    <div key={contributor.id} className="flex items-center gap-3">
-                      <div className="flex-shrink-0">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${
-                          index === 0 ? 'bg-yellow-500' : 
-                          index === 1 ? 'bg-gray-400' : 
-                          index === 2 ? 'bg-orange-500' : 'bg-blue-500'
-                        }`}>
-                          {index + 1}
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{contributor.name}</p>
-                        <p className="text-xs text-gray-500">{contributor.stats.total_contributions} contributions</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Utilisateurs en ligne */}
-            {communityData?.online_users && communityData.online_users.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
-                  En ligne maintenant
-                </h3>
-                <div className="space-y-3">
-                  {communityData.online_users.slice(0, 8).map((user) => (
-                    <div key={user.id} className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                        {user.avatar}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
-                        <p className="text-xs text-gray-500">{roleLabels[user.role as keyof typeof roleLabels] || user.role}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Statistiques par rôle */}
-            {communityData?.community_stats.by_role && (
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <UserCheck className="h-5 w-5 text-blue-500" />
-                  Répartition par rôle
-                </h3>
-                <div className="space-y-3">
-                  {Object.entries(communityData.community_stats.by_role).map(([role, count]) => (
-                    <div key={role} className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">{roleLabels[role as keyof typeof roleLabels] || role}</span>
-                      <span className="text-sm font-medium text-gray-900">{count}</span>
-                    </div>
-                  ))}
-                </div>
-                
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Contributions moyennes</span>
-                    <span className="text-sm font-medium text-gray-900">
-                      {Math.round(communityData.community_stats.avg_contributions)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Message si aucun membre */}
-        {communityData?.members.length === 0 && (
-          <div className="text-center py-12">
-            <Users className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-4 text-lg font-medium text-gray-900">Aucun membre trouvé</h3>
-            <p className="mt-2 text-gray-500">
-              La communauté grandit chaque jour. Revenez bientôt !
+      {/* Statistiques principales */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Membres</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{communityData.total_members}</div>
+            <p className="text-xs text-muted-foreground">
+              {communityData.new_users_this_month} nouveaux ce mois
             </p>
-          </div>
-        )}
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Utilisateurs Actifs</CardTitle>
+            <UserCheck className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{communityData.active_users}</div>
+            <p className="text-xs text-muted-foreground">
+              {Math.round((communityData.active_users / communityData.total_members) * 100)}% de la communauté
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">En Ligne</CardTitle>
+            <Zap className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{communityData.online_users}</div>
+            <p className="text-xs text-muted-foreground">
+              connectés maintenant
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Moy. Contributions</CardTitle>
+            <BarChart3 className="h-4 w-4 text-purple-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">
+              {communityData.average_contributions.toFixed(1)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              contributions par membre
+            </p>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Onglets principaux */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
+          <TabsTrigger value="members">Membres ({communityData.total_members})</TabsTrigger>
+          <TabsTrigger value="top">Top Contributors</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        </TabsList>
+
+        {/* Vue d'ensemble */}
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Répartition par rôles */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Répartition par Rôles</CardTitle>
+                <CardDescription>Distribution des membres par niveau d'accès</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[200px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={roleDistributionData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {roleDistributionData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Niveau de contributions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Niveaux de Contribution</CardTitle>
+                <CardDescription>Répartition des membres par activité</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[200px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={contributionDistributionData}>
+                      <XAxis 
+                        dataKey="level" 
+                        tick={{ fontSize: 12 }}
+                        angle={-45}
+                        textAnchor="end"
+                        height={60}
+                      />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip />
+                      <Bar dataKey="count" fill="#3b82f6" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Résumé des rôles */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card className="border-purple-200 bg-purple-50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-purple-800 flex items-center gap-2">
+                  <Crown className="h-5 w-5" />
+                  Administrateurs
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-purple-600 mb-2">
+                  {communityData.role_distribution.admin}
+                </div>
+                <p className="text-sm text-purple-700">
+                  Gestion complète de la plateforme
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-blue-200 bg-blue-50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-blue-800 flex items-center gap-2">
+                  <Award className="h-5 w-5" />
+                  Modérateurs
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600 mb-2">
+                  {communityData.role_distribution.moderateur}
+                </div>
+                <p className="text-sm text-blue-700">
+                  Modération des discussions
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-green-200 bg-green-50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-green-800 flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Contributeurs
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600 mb-2">
+                  {communityData.role_distribution.utilisateur}
+                </div>
+                <p className="text-sm text-green-700">
+                  Membres actifs de la communauté
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Liste des membres */}
+        <TabsContent value="members" className="space-y-6">
+          {/* Filtres et recherche */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Filtres et Recherche</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Rechercher un membre..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Rôle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les rôles</SelectItem>
+                    <SelectItem value="admin">Administrateurs</SelectItem>
+                    <SelectItem value="moderateur">Modérateurs</SelectItem>
+                    <SelectItem value="utilisateur">Contributeurs</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Statut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les statuts</SelectItem>
+                    <SelectItem value="online">En ligne</SelectItem>
+                    <SelectItem value="active">Actifs</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sortBy} onValueChange={(value) => {
+                  if (value.endsWith('_desc')) {
+                    setSortBy(value.replace('_desc', ''));
+                    setSortOrder('desc');
+                  } else if (value.endsWith('_asc')) {
+                    setSortBy(value.replace('_asc', ''));
+                    setSortOrder('asc');
+                  } else {
+                    setSortBy(value);
+                    setSortOrder('desc');
+                  }
+                }}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Trier par" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="contributions">Plus de contributions</SelectItem>
+                    <SelectItem value="projects">Plus de projets</SelectItem>
+                    <SelectItem value="comments">Plus de commentaires</SelectItem>
+                    <SelectItem value="datasets">Plus de datasets</SelectItem>
+                    <SelectItem value="created_at">Récemment rejoint</SelectItem>
+                    <SelectItem value="last_login">Dernière connexion</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sortOrder} onValueChange={setSortOrder}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Ordre" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">Descendant</SelectItem>
+                    <SelectItem value="asc">Ascendant</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Grille des membres */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredMembers.map((member) => {
+              const contributionLevel = getContributionLevel(member.total_contributions);
+              return (
+                <Card key={member.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <Avatar className="h-12 w-12">
+                            <AvatarFallback className="text-lg font-semibold">
+                              {member.first_name[0]}{member.last_name[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          {member.is_online && (
+                            <div className="absolute -bottom-1 -right-1 h-4 w-4 bg-green-500 border-2 border-white rounded-full"></div>
+                          )}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold">{getUserDisplayName(member)}</h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant={getRoleBadgeVariant(member.role)} className="text-xs">
+                              {getRoleDisplayName(member.role)}
+                            </Badge>
+                            {member.role === 'admin' && <Crown className="h-3 w-3 text-yellow-500" />}
+                            {member.role === 'moderateur' && <Award className="h-3 w-3 text-blue-500" />}
+                          </div>
+                        </div>
+                      </div>
+                      <Badge className={`${contributionLevel.bgColor} ${contributionLevel.color} text-xs`}>
+                        {contributionLevel.label}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                          <div className="text-lg font-bold text-blue-600">{member.projects_count}</div>
+                          <div className="text-xs text-gray-500">Projets</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold text-green-600">{member.datasets_count}</div>
+                          <div className="text-xs text-gray-500">Datasets</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold text-purple-600">{member.comments_count}</div>
+                          <div className="text-xs text-gray-500">Comments</div>
+                        </div>
+                      </div>
+
+                      {/* Assuming Separator is imported or defined elsewhere */}
+                      {/* <Separator /> */}
+
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Total contributions</span>
+                        <span className="font-semibold">{member.total_contributions}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>Membre depuis</span>
+                        <span>{new Date(member.created_at).toLocaleDateString('fr-FR', { 
+                          month: 'short', 
+                          year: 'numeric' 
+                        })}</span>
+                      </div>
+
+                      {member.last_login && (
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>Dernière connexion</span>
+                          <span>{new Date(member.last_login).toLocaleDateString('fr-FR')}</span>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {filteredMembers.length === 0 && (
+            <Card>
+              <CardContent className="py-8">
+                <div className="text-center">
+                  <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">Aucun membre trouvé avec ces filtres</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Top contributors */}
+        <TabsContent value="top" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-yellow-500" />
+                Top Contributors
+              </CardTitle>
+              <CardDescription>
+                Les membres les plus actifs de notre communauté
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {communityData.top_contributors?.map((contributor, index) => {
+                  const contributionLevel = getContributionLevel(contributor.total_contributions);
+                  return (
+                    <div key={contributor.id} className="flex items-center gap-4 p-4 rounded-lg border hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                            index === 0 ? 'bg-yellow-100 text-yellow-800' :
+                            index === 1 ? 'bg-gray-100 text-gray-800' :
+                            index === 2 ? 'bg-orange-100 text-orange-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {index + 1}
+                          </div>
+                        </div>
+                        <Avatar className="h-12 w-12">
+                          <AvatarFallback className="text-lg font-semibold">
+                            {contributor.first_name[0]}{contributor.last_name[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <h3 className="font-semibold">{getUserDisplayName(contributor)}</h3>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={getRoleBadgeVariant(contributor.role)} className="text-xs">
+                              {getRoleDisplayName(contributor.role)}
+                            </Badge>
+                            <Badge className={`${contributionLevel.bgColor} ${contributionLevel.color} text-xs`}>
+                              {contributionLevel.label}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex-1 grid grid-cols-4 gap-4 text-center">
+                        <div>
+                          <div className="text-lg font-bold text-blue-600">{contributor.projects_count}</div>
+                          <div className="text-xs text-gray-500">Projets</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold text-green-600">{contributor.datasets_count}</div>
+                          <div className="text-xs text-gray-500">Datasets</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold text-purple-600">{contributor.comments_count}</div>
+                          <div className="text-xs text-gray-500">Comments</div>
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold text-orange-600">{contributor.total_contributions}</div>
+                          <div className="text-xs text-gray-500">Total</div>
+                        </div>
+                      </div>
+
+                      {index < 3 && (
+                        <div className="flex items-center">
+                          {index === 0 && <Trophy className="h-6 w-6 text-yellow-500" />}
+                          {index === 1 && <Award className="h-6 w-6 text-gray-500" />}
+                          {index === 2 && <Star className="h-6 w-6 text-orange-500" />}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Analytics */}
+        <TabsContent value="analytics" className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Activité de la Communauté</CardTitle>
+                <CardDescription>Indicateurs clés de performance</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Taux d'activité</span>
+                  <span className="text-sm text-gray-600">
+                    {Math.round((communityData.active_users / communityData.total_members) * 100)}%
+                  </span>
+                </div>
+                <Progress value={(communityData.active_users / communityData.total_members) * 100} className="h-2" />
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Utilisateurs en ligne</span>
+                  <span className="text-sm text-gray-600">
+                    {Math.round((communityData.online_users / communityData.total_members) * 100)}%
+                  </span>
+                </div>
+                <Progress value={(communityData.online_users / communityData.total_members) * 100} className="h-2" />
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Contributions moyennes</span>
+                  <span className="text-sm text-gray-600">
+                    {communityData.average_contributions.toFixed(1)} par membre
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Nouveaux membres (ce mois)</span>
+                  <span className="text-sm text-gray-600">
+                    {communityData.new_users_this_month}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Répartition des Contributions</CardTitle>
+                <CardDescription>Distribution de l'activité par niveau</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {contributionDistributionData.map((item, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <span className="text-sm">{item.level}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-blue-500 h-2 rounded-full" 
+                            style={{ 
+                              width: `${(item.count / Math.max(...contributionDistributionData.map(d => d.count))) * 100}%` 
+                            }}
+                          ></div>
+                        </div>
+                        <span className="text-sm font-medium w-8 text-right">{item.count}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

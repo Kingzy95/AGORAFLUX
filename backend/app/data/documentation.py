@@ -117,7 +117,7 @@ class AutoDocumentationGenerator:
         transformation_summary = self._generate_transformation_summary(processed_data, fusion_result)
         documentation["transformation_summary"] = transformation_summary
         
-        logger.info("✅ Documentation complète générée")
+        logger.info(" Documentation complète générée")
         return documentation
     
     async def generate_source_documentation(self, source_name: str, source_data: Dict[str, Any]) -> Dict[str, Any]:

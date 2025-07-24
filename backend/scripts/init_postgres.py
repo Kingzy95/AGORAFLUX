@@ -37,7 +37,7 @@ def init_database():
     engine = create_engine(settings.DATABASE_URL, echo=True)
     
     # Créer toutes les tables
-    print("📋 Création des tables...")
+    print("Création des tables...")
     Base.metadata.create_all(bind=engine)
     
     # Créer une session
@@ -156,14 +156,14 @@ def init_database():
         db.add(dataset)
         db.commit()
         
-        print("✅ Base de données initialisée avec succès")
+        print(" Base de données initialisée avec succès")
         print(f"  - {len(users)} utilisateurs créés")
         print(f"  - 1 projet créé")
         print(f"  - 1 dataset créé")
         print("  - Commentaires mocks supprimés")
         
     except Exception as e:
-        print(f"❌ Erreur lors de l'initialisation : {e}")
+        print(f" Erreur lors de l'initialisation : {e}")
         db.rollback()
         raise
     finally:

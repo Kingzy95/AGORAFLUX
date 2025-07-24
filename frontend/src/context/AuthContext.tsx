@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, AuthContextType, LoginRequest, RegisterRequest, UpdateProfileRequest } from '../types/auth';
 import apiService from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -22,6 +23,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const isAuthenticated = !!user && apiService.isAuthenticated();
 
+  // Fonction pour gérer la déconnexion forcée (token expiré)
+  const handleForceLogout = () => {
+    setUser(null);
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    // La redirection sera gérée par le composant qui utilise useAuth
+  };
+
   // Charger l'utilisateur au démarrage de l'application
   useEffect(() => {
     const initializeAuth = async () => {
@@ -32,8 +41,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(userData);
         } catch (error) {
           console.error('Erreur lors de la récupération de l\'utilisateur:', error);
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
+          handleForceLogout();
         }
       }
       setIsLoading(false);
@@ -41,6 +49,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     initializeAuth();
   }, []);
+
+  // Vérification périodique de la validité du token
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const checkTokenValidity = async () => {
+      try {
+        await apiService.getCurrentUser();
+      } catch (error) {
+        console.log('Token invalide, déconnexion automatique');
+        handleForceLogout();
+      }
+    };
+
+    // Vérifier toutes les 5 minutes
+    const interval = setInterval(checkTokenValidity, 5 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
 
   const login = async (credentials: LoginRequest): Promise<void> => {
     try {

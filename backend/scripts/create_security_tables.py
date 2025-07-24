@@ -26,7 +26,7 @@ def main():
         # 1. Créer toutes les tables
         print("📊 Création des tables...")
         Base.metadata.create_all(bind=engine)
-        print("   ✅ Tables créées avec succès")
+        print("    Tables créées avec succès")
         
         # 2. Vérifier les tables créées
         with engine.connect() as conn:
@@ -41,9 +41,9 @@ def main():
             
             for table in ['security_logs', 'project_permissions']:
                 if table in tables:
-                    print(f"   ✅ Table {table} créée")
+                    print(f"    Table {table} créée")
                 else:
-                    print(f"   ❌ Table {table} manquante")
+                    print(f"    Table {table} manquante")
         
         print("\n🎉 Configuration de sécurité terminée !")
         print("\nPrêt pour :")
@@ -53,7 +53,7 @@ def main():
         print("   • Protection contre les attaques")
         
     except Exception as e:
-        print(f"\n❌ Erreur : {e}")
+        print(f"\n Erreur : {e}")
         return False
     
     return True

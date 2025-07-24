@@ -304,7 +304,7 @@ const Profile: React.FC = () => {
             <div>
               <Label className="text-sm font-medium text-gray-600">Statut</Label>
               <p className="text-sm text-gray-900">
-                {user.is_active ? '✅ Actif' : '❌ Inactif'}
+                {user.is_active ? ' Actif' : ' Inactif'}
               </p>
             </div>
             <div>

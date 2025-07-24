@@ -215,7 +215,7 @@ def init_test_data():
         # Commentaires désactivés
         logger.info("Commentaires de test désactivés")
         
-        logger.info("✅ Données de test créées avec succès")
+        logger.info(" Données de test créées avec succès")
         
         # Afficher les informations de connexion
         print("\n" + "="*60)

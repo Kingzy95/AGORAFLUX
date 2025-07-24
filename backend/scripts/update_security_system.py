@@ -37,7 +37,7 @@ def update_security_system():
             bind=engine, 
             tables=[ProjectPermission.__table__, SecurityLog.__table__]
         )
-        print("   ✅ Tables créées : project_permissions, security_logs")
+        print("    Tables créées : project_permissions, security_logs")
         
         with engine.connect() as conn:
             trans = conn.begin()
@@ -87,7 +87,7 @@ def update_security_system():
                             }
                         )
                 
-                print("   ✅ Permissions des propriétaires créées")
+                print("    Permissions des propriétaires créées")
                 
                 # 3. Vérifier et corriger les rôles utilisateur
                 print("\n3. 👥 Vérification des rôles utilisateur...")
@@ -110,7 +110,7 @@ def update_security_system():
                             text("UPDATE users SET role = 'utilisateur' WHERE role = :invalid_role"),
                             {"invalid_role": invalid_role}
                         )
-                    print("   ✅ Rôles invalides corrigés vers 'utilisateur'")
+                    print("    Rôles invalides corrigés vers 'utilisateur'")
                 
                 # 4. Créer un log de migration
                 print("\n4. 📝 Création du log de migration...")
@@ -129,7 +129,7 @@ def update_security_system():
                 
                 # Valider la transaction
                 trans.commit()
-                print("   ✅ Migration terminée avec succès")
+                print("    Migration terminée avec succès")
                 
             except Exception as e:
                 trans.rollback()
@@ -140,7 +140,7 @@ def update_security_system():
         verify_migration(engine)
         
         print("\n" + "=" * 70)
-        print("✅ Système de sécurité mis à jour avec succès !")
+        print(" Système de sécurité mis à jour avec succès !")
         print("\n📋 Résumé des changements :")
         print("   • Système simplifié à 3 rôles : admin/modérateur/utilisateur")
         print("   • Permissions granulaires par projet")
@@ -150,7 +150,7 @@ def update_security_system():
         return True
         
     except Exception as e:
-        print(f"\n❌ Erreur lors de la migration : {str(e)}")
+        print(f"\n Erreur lors de la migration : {str(e)}")
         return False
 
 
@@ -244,7 +244,7 @@ def main():
     # Demander confirmation
     response = input("Voulez-vous procéder à la migration ? [y/N]: ")
     if response.lower() not in ['y', 'yes', 'oui']:
-        print("❌ Migration annulée par l'utilisateur")
+        print(" Migration annulée par l'utilisateur")
         return
     
     # Effectuer la migration
