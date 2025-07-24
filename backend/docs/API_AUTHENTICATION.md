@@ -6,17 +6,17 @@ L'API d'authentification AgoraFlux fournit un système complet d'authentificatio
 
 ## Fonctionnalités Principales
 
-### 🔐 Authentification JWT
+### Authentification JWT
 - Tokens d'accès (30 minutes) et de rafraîchissement (7 jours)
 - Signature sécurisée avec clé secrète
 - Validation automatique des tokens
 
-### 👥 Gestion des Rôles
+### Gestion des Rôles
 - **ADMIN** : Accès complet à tous les endpoints
 - **MODERATOR** : Accès aux fonctions de modération
 - **USER** : Accès aux fonctions utilisateur de base
 
-### 🛡️ Sécurité
+### Sécurité
 - Rate limiting : 5 tentatives de connexion par 15 minutes
 - Verrouillage automatique des comptes après échecs
 - Hachage des mots de passe avec bcrypt (12 rounds)
@@ -48,7 +48,7 @@ Connexion utilisateur avec email et mot de passe.
 ```
 
 #### `POST /api/v1/auth/refresh`
-Rafraîchissement du token d'accès.
+Renouvellement du token d'accès avec le token de rafraîchissement.
 
 **Requête :**
 ```json
@@ -57,113 +57,198 @@ Rafraîchissement du token d'accès.
 }
 ```
 
-#### `GET /api/v1/auth/me`
-Informations de l'utilisateur connecté.
+**Réponse :**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "expires_in": 1800
+}
+```
 
-**Headers :** `Authorization: Bearer <token>`
+#### `POST /api/v1/auth/logout`
+Déconnexion utilisateur (invalidation des tokens).
+
+**Headers :**
+```
+Authorization: Bearer <access_token>
+```
 
 **Réponse :**
 ```json
 {
-  "id": 9,
-  "email": "admin@agoraflux.fr",
-  "first_name": "Admin",
-  "last_name": "AgoraFlux",
-  "role": "admin",
-  "is_active": true,
-  "is_verified": true,
-  "created_at": "2025-07-04T00:13:58.673968",
-  "last_login": "2025-07-04T00:14:16.008816"
+  "message": "Déconnexion réussie"
 }
 ```
 
-### Gestion des Utilisateurs
+### Gestion des Comptes
 
 #### `POST /api/v1/auth/register`
-Enregistrement d'un nouvel utilisateur.
+Création d'un nouveau compte utilisateur.
 
 **Requête :**
 ```json
 {
   "email": "nouveau@agoraflux.fr",
-  "password": "MotDePasse123",
+  "password": "motDePasseFort123!",
   "first_name": "Nouveau",
   "last_name": "Utilisateur"
 }
 ```
 
-#### `POST /api/v1/auth/change-password`
-Changement de mot de passe.
+**Réponse :**
+```json
+{
+  "message": "Compte créé avec succès",
+  "user_id": 123
+}
+```
 
-**Headers :** `Authorization: Bearer <token>`
+#### `POST /api/v1/auth/change-password`
+Changement du mot de passe utilisateur.
+
+**Headers :**
+```
+Authorization: Bearer <access_token>
+```
 
 **Requête :**
 ```json
 {
-  "current_password": "ancien_mot_de_passe",
-  "new_password": "nouveau_mot_de_passe",
-  "confirm_password": "nouveau_mot_de_passe"
+  "current_password": "ancienMotDePasse",
+  "new_password": "nouveauMotDePasseFort123!"
 }
 ```
-
-### Endpoints Administrateur
-
-#### `GET /api/v1/auth/users`
-Liste de tous les utilisateurs (admin seulement).
-
-**Headers :** `Authorization: Bearer <admin_token>`
-
-**Réponse :**
-```json
-[
-  {
-    "id": 9,
-    "email": "admin@agoraflux.fr",
-    "first_name": "Admin",
-    "last_name": "AgoraFlux",
-    "role": "admin",
-    "is_active": true,
-    "is_verified": true,
-    "created_at": "2025-07-04T00:13:58.673968"
-  }
-]
-```
-
-#### `PUT /api/v1/auth/users/{user_id}/role`
-Modification du rôle d'un utilisateur (admin seulement).
-
-#### `PUT /api/v1/auth/users/{user_id}/activate`
-Activation d'un compte utilisateur (admin seulement).
-
-#### `PUT /api/v1/auth/users/{user_id}/deactivate`
-Désactivation d'un compte utilisateur (admin seulement).
-
-### Endpoints Utilitaires
-
-#### `GET /api/v1/auth/status`
-Statut du système d'authentification.
 
 **Réponse :**
 ```json
 {
-  "status": "operational",
-  "features": {
-    "jwt_authentication": true,
-    "role_based_access": true,
-    "rate_limiting": true,
-    "account_locking": true,
-    "email_verification": true
-  }
+  "message": "Mot de passe modifié avec succès"
 }
 ```
 
-#### `POST /api/v1/auth/logout`
-Déconnexion utilisateur.
+### Validation et Profil
 
-#### `POST /api/v1/auth/verify-email/{user_id}`
-Vérification d'email (admin seulement).
+#### `GET /api/v1/auth/me`
+Récupération du profil utilisateur actuel.
+
+**Headers :**
+```
+Authorization: Bearer <access_token>
+```
+
+**Réponse :**
+```json
+{
+  "id": 1,
+  "email": "admin@agoraflux.fr",
+  "first_name": "Admin",
+  "last_name": "AgoraFlux",
+  "role": "admin",
+  "is_active": true,
+  "created_at": "2024-01-01T00:00:00Z"
+}
+```
+
+#### `POST /api/v1/auth/validate-token`
+Validation d'un token JWT.
+
+**Requête :**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Réponse :**
+```json
+{
+  "valid": true,
+  "user_id": 1,
+  "email": "admin@agoraflux.fr",
+  "role": "admin"
+}
+```
+
+## Gestion des Erreurs
+
+### Codes d'Erreur HTTP
+
+- **200** : Succès
+- **400** : Requête invalide (données manquantes/incorrectes)
+- **401** : Non authentifié (token invalide/expiré)
+- **403** : Accès interdit (permissions insuffisantes)
+- **422** : Erreur de validation (format de données incorrect)
+- **429** : Trop de tentatives (rate limiting activé)
+- **500** : Erreur serveur interne
+
+### Exemples de Réponses d'Erreur
+
+#### Erreur d'authentification (401)
+```json
+{
+  "detail": "Could not validate credentials",
+  "error_code": "INVALID_TOKEN"
+}
+```
+
+#### Erreur de validation (422)
+```json
+{
+  "detail": [
+    {
+      "loc": ["body", "password"],
+      "msg": "Password must be at least 8 characters long",
+      "type": "value_error"
+    }
+  ]
+}
+```
+
+#### Rate limiting (429)
+```json
+{
+  "detail": "Too many login attempts. Please try again in 15 minutes.",
+  "retry_after": 900
+}
+```
+
+## Utilisation des Tokens
+
+### Format du Token JWT
+
+Les tokens JWT contiennent les informations suivantes dans leur payload :
+
+```json
+{
+  "sub": "1",
+  "email": "admin@agoraflux.fr",
+  "role": "admin",
+  "type": "access",
+  "exp": 1234567890,
+  "iat": 1234567890
+}
+```
+
+### Headers d'Authentification
+
+Pour tous les endpoints protégés, incluez le token dans le header Authorization :
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### Cycle de Vie des Tokens
+
+1. **Connexion** : Réception des tokens d'accès et de rafraîchissement
+2. **Utilisation** : Token d'accès pour les requêtes API (30 min)
+3. **Renouvellement** : Token de rafraîchissement pour obtenir un nouveau token d'accès
+4. **Expiration** : Token de rafraîchissement expire après 7 jours
+5. **Déconnexion** : Invalidation explicite des tokens
 
 ## Comptes de Test
+
+Pour tester l'API, utilisez les comptes préconfigurés :
 
 ### Administrateur
 - **Email :** admin@agoraflux.fr
@@ -175,11 +260,12 @@ Vérification d'email (admin seulement).
 - **Mot de passe :** mod123
 - **Rôle :** MODERATOR
 
-### Utilisateurs
+### Utilisateur Standard
 - **Email :** utilisateur@agoraflux.fr
 - **Mot de passe :** user123
 - **Rôle :** USER
 
+### Utilisateur Marie
 - **Email :** marie.dupont@agoraflux.fr
 - **Mot de passe :** marie123
 - **Rôle :** USER
@@ -216,12 +302,12 @@ Vérification d'email (admin seulement).
 ## Tests
 
 Le script `test_api.py` valide automatiquement :
-- ✅ Authentification JWT
-- ✅ Gestion des rôles
-- ✅ Rafraîchissement des tokens
-- ✅ Protection des endpoints
-- ✅ Validation des tokens
-- ✅ Gestion des erreurs
+- Authentification JWT
+- Gestion des rôles
+- Rafraîchissement des tokens
+- Protection des endpoints
+- Validation des tokens
+- Gestion des erreurs
 
 **Commande :** `python test_api.py`
 
@@ -251,6 +337,6 @@ ACCOUNT_LOCK_DURATION=900
 
 ---
 
-**Statut :** ✅ Complètement implémenté et testé
+**Statut :** Complètement implémenté et testé
 **Version :** 1.0.0
 **Date :** 2025-07-04 

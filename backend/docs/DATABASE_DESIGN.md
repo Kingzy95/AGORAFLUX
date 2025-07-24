@@ -6,7 +6,7 @@ La base de données AgoraFlux est conçue pour supporter une plateforme de **col
 
 ## Modèles de Données
 
-### 🧑‍💼 User (Utilisateurs)
+### User (Utilisateurs)
 
 Gestion des utilisateurs avec système de rôles hiérarchique :
 
@@ -21,7 +21,7 @@ Gestion des utilisateurs avec système de rôles hiérarchique :
 - Profils utilisateur enrichis (bio, localisation, site web)
 - Suivi des connexions et activités
 
-### 📁 Project (Projets)
+### Project (Projets)
 
 Projets de collaboration citoyenne autour de données publiques :
 
@@ -38,7 +38,7 @@ Projets de collaboration citoyenne autour de données publiques :
 - Méthodologie et objectifs documentés
 - Statistiques de participation (vues, contributeurs)
 
-### 📊 Dataset (Jeux de données)
+### Dataset (Jeux de données)
 
 Gestion des données publiques avec pipeline de traitement :
 
@@ -54,7 +54,7 @@ Gestion des données publiques avec pipeline de traitement :
 - **Validité** : Respect des règles de validation
 - Évaluation automatique de la qualité globale
 
-### 💬 Comment (Commentaires)
+### Comment (Commentaires)
 
 Système de collaboration asynchrone avec modération :
 
@@ -179,10 +179,10 @@ source venv/bin/activate
 python scripts/init_db.py
 
 # Test des modèles
-python -c "from app.models import User, Project; print('✅ Modèles OK')"
+python -c "from app.models import User, Project; print('Modèles OK')"
 
 # Test des schémas
-python -c "from app.schemas import UserCreate; print('✅ Schémas OK')"
+python -c "from app.schemas import UserCreate; print('Schémas OK')"
 ```
 
 Cette architecture respecte les principes du cahier des charges AgoraFlux en offrant une base solide pour la collaboration citoyenne autour de données publiques enrichies. 

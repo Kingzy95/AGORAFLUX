@@ -55,76 +55,74 @@ AgoraFlux implémente un système de sécurité à plusieurs niveaux conforme au
 
 ### Exigences de Sécurité Satisfaites
 
-✅ **Gestion d'authentification avec rôles (admin/modérateur/utilisateur)**
-- 3 rôles hiérarchiques implémentés
-- Système de permissions par projet
-- Héritage automatique des permissions
+1. **Gestion d'authentification avec rôles (admin/modérateur/utilisateur)**
+   - Architecture JWT complète avec refresh tokens
+   - 3 rôles hiérarchiques avec permissions héritées
+   - Protection anti-bruteforce (5 tentatives max, 15min lockout)
 
-✅ **Sécurisation des routes sensibles selon les rôles**
-- Middleware d'audit automatique
-- Protection par décorateurs
-- Vérification des permissions en temps réel
+2. **Sécurisation des routes sensibles selon les rôles**
+   - Middleware automatique détectant 8+ patterns de routes critiques
+   - Protection temps réel avec journalisation automatique
+   - Rate limiting configurable (120 req/min par défaut)
 
-✅ **Journalisation des connexions et accès sensibles**
-- 15+ types d'événements de sécurité
-- Conservation de 12 mois
-- Détection d'activités suspectes
+3. **Journalisation des connexions et accès sensibles**
+   - 15+ types d'événements automatiquement journalisés
+   - Conservation sécurisée 12 mois avec intégrité protégée
+   - Détection proactive d'activités suspectes
 
-✅ **Politiques de mot de passe et conditions d'usage claires**
-- Validation stricte des mots de passe
-- Documentation des politiques
-- Procédures de signalement
+4. **Politiques de mot de passe et conditions d'usage claires**
+   - Validation 8+ caractères, complexité obligatoire (maj/min/chiffre)
+   - Hachage bcrypt 12 rounds (résistant bruteforce)
+   - Documentation complète des politiques utilisateur
 
 ---
 
 ## Authentification et Autorisation
 
-### Système JWT
+### Architecture JWT
 
-#### Configuration
+Le système d'authentification repose sur JSON Web Tokens avec double token :
+
+#### Access Token (30 minutes)
 ```python
-# Configuration des tokens
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 7
-ALGORITHM = "HS256"
-SECRET_KEY = "votre-cle-secrete-super-forte"
+{
+    "sub": "user_id",
+    "email": "user@example.com", 
+    "role": "admin|moderateur|utilisateur",
+    "type": "access",
+    "exp": timestamp,
+    "iat": timestamp
+}
 ```
 
-#### Flux d'Authentification
-1. **Connexion**: Utilisateur envoie email/mot de passe
-2. **Vérification**: Validation contre la base de données
-3. **Génération**: Création des tokens access/refresh
-4. **Retour**: Tokens sécurisés envoyés au client
+#### Refresh Token (7 jours)
+```python
+{
+    "sub": "user_id",
+    "type": "refresh", 
+    "exp": timestamp,
+    "iat": timestamp
+}
+```
 
-#### Sécurité des Tokens
-- **Signature cryptographique** avec HMAC-SHA256
-- **Expiration automatique** des tokens
-- **Payload minimal** pour réduire l'exposition
-- **Validation stricte** à chaque requête
+### Flux d'Authentification
+
+1. **Login** : Validation email/password → génération access + refresh tokens
+2. **Requêtes API** : Access token dans header Authorization
+3. **Refresh** : Refresh token → nouveau access token
+4. **Logout** : Invalidation des tokens côté client
 
 ### Hachage des Mots de Passe
 
-#### Algorithme Bcrypt
 ```python
-# Configuration bcrypt
-BCRYPT_ROUNDS = 12  # Force de hachage élevée
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=12  # Résistant aux attaques par force brute
+)
 ```
-
-#### Sécurité
-- **Salt aléatoire** pour chaque mot de passe
-- **Coût computationnel élevé** (12 rounds)
-- **Résistance aux attaques** par force brute
-- **Non-réversibilité** du hachage
-
-### Validation des Mots de Passe
-
-#### Critères de Force
-- **Longueur minimale**: 8 caractères
-- **Complexité requise**:
-  - Au moins 1 majuscule
-  - Au moins 1 minuscule
-  - Au moins 1 chiffre
-- **Validation côté serveur** obligatoire
 
 ---
 
@@ -168,14 +166,14 @@ BCRYPT_ROUNDS = 12  # Force de hachage élevée
 
 | Permission | Admin Global | Modérateur | Utilisateur | Admin Projet | Mod. Projet | User Projet |
 |------------|--------------|------------|--------------|--------------|-------------|-------------|
-| Voir projet | ✅ | ✅ | ✅* | ✅ | ✅ | ✅ |
-| Éditer projet | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| Supprimer projet | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| Gérer utilisateurs | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| Modérer commentaires | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
-| Upload datasets | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Supprimer datasets | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| Exporter données | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| Voir projet | OUI | OUI | OUI* | OUI | OUI | OUI |
+| Éditer projet | OUI | NON | NON | OUI | NON | NON |
+| Supprimer projet | OUI | NON | NON | OUI | NON | NON |
+| Gérer utilisateurs | OUI | NON | NON | OUI | NON | NON |
+| Modérer commentaires | OUI | OUI | NON | OUI | OUI | NON |
+| Upload datasets | OUI | OUI | OUI | OUI | OUI | OUI |
+| Supprimer datasets | OUI | NON | NON | OUI | NON | NON |
+| Exporter données | OUI | OUI | NON | OUI | OUI | NON |
 
 *Selon la visibilité du projet
 
@@ -258,90 +256,83 @@ class SecurityLog:
 
 #### Routes Sensibles (Patterns)
 ```python
-sensitive_routes = [
-    r"/api/v1/auth/.*",                    # Authentification
-    r"/api/v1/admin/.*",                   # Administration
-    r"/api/v1/permissions/.*",             # Gestion permissions
-    r"/api/v1/projects/.*/permissions/.*", # Permissions projets
-    r"/api/v1/projects/.*/delete",         # Suppression projets
-    r"/api/v1/users/.*/role",              # Changement rôles
-    r"/api/v1/exports/.*",                 # Exports de données
-    r"/api/v1/moderation/.*",              # Modération
+SENSITIVE_PATTERNS = [
+    r"^/api/v1/auth/.*",           # Authentification
+    r"^/api/v1/admin/.*",          # Administration
+    r"^/api/v1/permissions/.*",    # Permissions
+    r"^/api/v1/exports/.*",        # Exports
+    r"^/api/v1/moderation/.*",     # Modération
+    r".*/(delete|remove)/.*",      # Suppressions
+    r".*/moderate$",               # Actions modération
+    r"^/api/v1/.*/(users|roles)/.*" # Gestion utilisateurs
 ]
 ```
 
-#### Détection de Menaces
-- **Tentatives multiples** échouées par IP
-- **Accès non autorisés** répétés
-- **Patterns d'attaque** connus
-- **Blocage automatique** des IPs suspectes
-
 ### RateLimitMiddleware
 
-#### Protection Anti-DDoS
-- **Limitation par IP**: 120 requêtes/minute par défaut
-- **Fenêtre glissante**: Nettoyage automatique
-- **Réponse 429**: Trop de requêtes
-- **Configuration flexible**: Ajustable selon les besoins
+#### Configuration
+- **Limite par défaut**: 120 requêtes/minute
+- **Fenêtre glissante**: 60 secondes
+- **Stockage**: Redis ou mémoire
+- **Exemptions**: Routes health check
+
+#### Implémentation
+```python
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, requests_per_minute: int = 120):
+        super().__init__(app)
+        self.limit = requests_per_minute
+        self.window = 60  # secondes
+```
 
 ---
 
 ## Tests Automatisés
 
-### Couverture des Tests
-
-#### Tests de Sécurité (13 tests)
-1. **Hachage des mots de passe**
-   - Génération de hashes uniques
-   - Vérification correcte
-   - Résistance aux mauvais mots de passe
-
-2. **Sécurité JWT**
-   - Création et vérification des tokens
-   - Gestion des tokens invalides/expirés
-   - Séparation access/refresh tokens
-
-3. **Permissions par rôle**
-   - Hiérarchie des rôles globaux
-   - Permissions d'accès aux projets
-   - Permissions d'édition/suppression
-   - Modération des commentaires
-
-4. **Permissions par projet**
-   - Permissions par défaut des rôles
-   - Application automatique des permissions
-   - Mise à jour dynamique
-
-5. **Journalisation de sécurité**
-   - Création d'événements
-   - Persistance en base
-   - Différents types d'événements
-
-### Exécution des Tests
-
-```bash
-# Tests complets avec le script autonome
-python scripts/run_security_tests.py
-
-# Tests avec affichage détaillé
-python scripts/run_security_tests.py --verbose
-```
-
-### Résultats de Tests
+### Suite de Tests de Sécurité
 
 ```
-🛡️ SUITE DE TESTS DE SÉCURITÉ AGORAFLUX
+SUITE DE TESTS DE SÉCURITÉ AGORAFLUX
 ============================================================
-📊 RÉSULTATS DES TESTS
-   ✅ Tests réussis : 13
-   ❌ Tests échoués : 0
-   📈 Taux de réussite : 100.0%
+RÉSULTATS DES TESTS
+   Tests réussis : 13
+   Tests échoués : 0
+   Taux de réussite : 100.0%
 
-🎉 TOUS LES TESTS DE SÉCURITÉ PASSENT !
+TOUS LES TESTS DE SÉCURITÉ PASSENT !
    • Système d'authentification sécurisé
    • Gestion robuste des permissions
    • Journalisation de sécurité active
    • Protection contre les attaques
+```
+
+### Tests Implémentés
+
+#### SecurityLogging (5 tests)
+- Test de création des logs de sécurité
+- Validation des types d'événements
+- Vérification de l'intégrité des données
+- Test de la rétention des logs
+- Validation des recherches dans les logs
+
+#### PermissionChecker (8 tests)
+- Vérification des rôles globaux
+- Test des permissions par projet
+- Validation de l'héritage des droits
+- Test des restrictions d'accès
+- Vérification des cas d'erreur
+
+### Commandes de Test
+
+```bash
+# Tests de sécurité uniquement
+pytest tests/test_security.py -v
+
+# Tests complets avec couverture
+pytest tests/ --cov=app --cov-report=html
+
+# Tests spécifiques aux permissions
+pytest tests/test_security.py::test_permission_checker -v
 ```
 
 ---
@@ -391,7 +382,7 @@ python scripts/update_security_system.py
 python scripts/run_security_tests.py
 
 # Vérification de l'application
-python -c "from app.main import app; print('✅ Application prête')"
+python -c "from app.main import app; print('Application prête')"
 ```
 
 ### Checklist de Sécurité
@@ -410,19 +401,52 @@ python -c "from app.main import app; print('✅ Application prête')"
 - [ ] Surveillance des tentatives de connexion
 - [ ] Alertes sur activités suspectes
 - [ ] Audit régulier des permissions
-- [ ] Rotation des clés de chiffrement
-- [ ] Mise à jour des dépendances de sécurité
+- [ ] Sauvegarde des logs de sécurité
+- [ ] Tests de pénétration périodiques
 
 ---
 
-## Conclusion
+## Maintenance et Évolution
 
-Le système de sécurité d'AgoraFlux répond à toutes les exigences spécifiées :
+### Scripts d'Administration
 
-1. **Authentification robuste** avec JWT et bcrypt
-2. **Autorisation granulaire** avec 3 rôles + permissions par projet
-3. **Journalisation complète** avec 15+ types d'événements
-4. **Protection proactive** avec middlewares de sécurité
-5. **Tests automatisés** couvrant 100% des composants critiques
+#### Gestion des Utilisateurs
+```bash
+# Créer un administrateur
+python scripts/create_admin.py --email admin@domain.com
 
-Le système est **prêt pour la production** avec une architecture sécurisée, documentée et testée. 
+# Lister les utilisateurs verrouillés
+python scripts/list_locked_users.py
+
+# Débloquer un utilisateur
+python scripts/unlock_user.py --email user@domain.com
+```
+
+#### Audit et Logs
+```bash
+# Analyser les logs de sécurité
+python scripts/analyze_security_logs.py --days 7
+
+# Exporter les logs pour audit
+python scripts/export_logs.py --start-date 2024-01-01 --format json
+
+# Nettoyer les anciens logs
+python scripts/cleanup_old_logs.py --older-than 365
+```
+
+### Mise à Jour du Système
+
+```bash
+# Sauvegarder la configuration actuelle
+python scripts/backup_security_config.py
+
+# Appliquer les mises à jour de sécurité
+python scripts/update_security_system.py
+
+# Vérifier l'intégrité après mise à jour
+python scripts/verify_security_integrity.py
+```
+
+---
+
+*Cette documentation technique est maintenue à jour avec chaque version du système de sécurité AgoraFlux.* 

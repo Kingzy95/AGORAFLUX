@@ -1,6 +1,6 @@
 # Politique de Sécurité & Confidentialité - AgoraFlux
 
-## 🔐 Authentification et Rôles
+## Authentification et Rôles
 
 ### Rôles Utilisateur
 
@@ -25,7 +25,7 @@ AgoraFlux utilise un système de rôles à 3 niveaux :
 - **Upload et gestion** de ses datasets
 - **Accès aux fonctionnalités de collaboration**
 
-## 🛡️ Politique des Mots de Passe
+## Politique des Mots de Passe
 
 ### Exigences Minimales
 
@@ -48,11 +48,11 @@ Tous les mots de passe doivent respecter les critères suivants :
 ### Interdictions
 
 - Mots de passe basés sur des informations personnelles
-- Suites de caractères simples (123456, abcdef, azerty)
-- Mots du dictionnaire sans modifications
+- Séquences simples (123456, abcdef, qwerty)
+- Mots du dictionnaire sans modification
 - Réutilisation des 5 derniers mots de passe
 
-## 🔒 Sécurité des Comptes
+## Sécurité des Comptes
 
 ### Protection Anti-Bruteforce
 
@@ -68,7 +68,7 @@ Tous les mots de passe doivent respecter les critères suivants :
 - **Déconnexion automatique** : Après expiration ou inactivité prolongée
 - **Session unique** : Possibilité de limiter à une session par utilisateur
 
-## 📊 Journalisation et Audit
+## Journalisation et Audit
 
 ### Événements Journalisés
 
@@ -97,7 +97,7 @@ Tous les mots de passe doivent respecter les critères suivants :
 - **Intégrité** : Protection contre la modification
 - **Anonymisation** : Après la période de conservation
 
-## 🔐 Permissions par Projet
+## Permissions par Projet
 
 ### Système Granulaire
 
@@ -123,90 +123,124 @@ Chaque projet peut avoir des permissions spécifiques :
 
 ### Héritage des Rôles Globaux
 
-- **Admins globaux** → Admins automatiques sur tous les projets
-- **Modérateurs globaux** → Modérateurs automatiques sur projets publics
-- **Utilisateurs** → Accès selon les permissions projet
+Les rôles globaux héritent automatiquement des permissions :
+- **Admin global** → Admin sur tous les projets
+- **Modérateur global** → Modérateur sur tous les projets publics
+- **Utilisateur** → Permissions explicites requises
 
-## 🚨 Détection d'Intrusion
+## Protection des Données
 
-### Surveillance Automatique
+### Chiffrement
 
-- **Tentatives de connexion anormales**
-- **Accès depuis nouvelles localisations géographiques**
-- **Patterns d'utilisation suspects**
-- **Tentatives d'élévation de privilèges**
+- **En transit** : HTTPS/TLS 1.3 pour toutes les communications
+- **Au repos** : Chiffrement AES-256 pour les données sensibles
+- **Mots de passe** : Hachage bcrypt avec 12 rounds minimum
+- **Tokens** : Signature cryptographique pour l'intégrité
 
-### Réactions Automatiques
+### Anonymisation
 
-- **Verrouillage préventif** des comptes à risque
-- **Limitation de bande passante** pour les IP suspectes
-- **Alertes en temps réel** aux administrateurs
-- **Blocage temporaire** des actions sensibles
+- **Données personnelles** : Anonymisation automatique après suppression
+- **Logs d'audit** : Pseudonymisation des identifiants utilisateur
+- **Exports** : Option d'anonymisation pour les rapports publics
+- **Statistiques** : Agrégation sans données personnelles identifiables
 
-## 📋 Conditions d'Usage
+### Sauvegarde et Récupération
 
-### Utilisation Acceptable
+- **Backup quotidien** : Sauvegarde chiffrée automatique
+- **Rétention** : 30 jours pour les sauvegardes complètes
+- **Test de récupération** : Validation mensuelle des procédures
+- **Site distant** : Stockage géographiquement séparé
 
-**Autorisé :**
-- Collaboration citoyenne constructive
-- Partage de données publiques
-- Discussions respectueuses
-- Utilisation des fonctionnalités prévues
+## Politique de Confidentialité
 
-**Interdit :**
-- Tentatives d'intrusion ou de piratage
-- Partage de données confidentielles sans autorisation
-- Usurpation d'identité
-- Spamming ou trolling
-- Utilisation à des fins commerciales non autorisées
+### Collecte de Données
 
-### Sanctions
+**Données obligatoires :**
+- Email (identifiant unique)
+- Nom et prénom
+- Mot de passe (haché)
 
-**Première infraction :**
-- Avertissement et sensibilisation
-- Suppression du contenu inapproprié
+**Données optionnelles :**
+- Photo de profil
+- Biographie
+- Localisation (ville)
+- Site web personnel
 
-**Infractions répétées :**
-- Suspension temporaire (7-30 jours)
-- Limitation des fonctionnalités
+### Utilisation des Données
 
-**Infractions graves :**
-- Suspension définitive
-- Signalement aux autorités si nécessaire
+Les données collectées sont utilisées exclusivement pour :
+- **Authentification** et gestion des comptes
+- **Personnalisation** de l'expérience utilisateur
+- **Collaboration** sur les projets
+- **Communication** relative au service
+- **Amélioration** de la plateforme
 
-## 🛠️ Maintenance et Mises à Jour
+### Droits des Utilisateurs
 
-### Mises à Jour de Sécurité
+Conformément au RGPD, chaque utilisateur dispose de :
+- **Droit d'accès** : Consultation de ses données personnelles
+- **Droit de rectification** : Modification des informations
+- **Droit à l'effacement** : Suppression du compte et des données
+- **Droit à la portabilité** : Export de ses données au format JSON
+- **Droit d'opposition** : Refus du traitement pour certaines finalités
 
-- **Déploiement automatique** des correctifs critiques
-- **Fenêtres de maintenance** planifiées et annoncées
-- **Tests de sécurité** réguliers
-- **Audit de code** par des tiers
+## Signalement d'Incidents
 
-### Communication
+### Procédure de Signalement
 
-- **Notifications préalables** pour les maintenances planifiées
-- **Alertes de sécurité** en cas d'incident
-- **Changelog public** des améliorations de sécurité
-- **Canal de contact** pour signaler des vulnérabilités
+En cas de problème de sécurité :
 
-## 📞 Contact et Signalement
+1. **Signalement immédiat** : Contacter l'équipe de sécurité
+2. **Email sécurisé** : security@agoraflux.fr
+3. **Numéro d'urgence** : +33 (0)1 23 45 67 89
+4. **Formulaire en ligne** : Interface de signalement dédiée
+
+### Types d'Incidents à Signaler
+
+- Tentatives d'accès non autorisé
+- Vulnérabilités de sécurité découvertes
+- Utilisation abusive de la plateforme
+- Données personnelles compromises
+- Comportements suspects
+
+### Temps de Réponse
+
+- **Critique** : < 2 heures
+- **Élevé** : < 24 heures
+- **Moyen** : < 72 heures
+- **Faible** : < 1 semaine
+
+## Conformité Réglementaire
+
+### RGPD (Règlement Général sur la Protection des Données)
+
+AgoraFlux est conçu pour être conforme au RGPD :
+- **Privacy by Design** : Protection intégrée dès la conception
+- **Consentement explicite** : Opt-in pour les données non essentielles
+- **DPO désigné** : Délégué à la protection des données identifié
+- **Registre des traitements** : Documentation complète maintenue
+
+### Autres Réglementations
+
+- **LIL (Loi Informatique et Libertés)** : Conformité française
+- **eIDAS** : Identification électronique européenne
+- **Cybersécurité** : Respect des recommandations ANSSI
+
+## Contact
 
 ### Équipe Sécurité
 
 - **Email** : security@agoraflux.fr
-- **Urgences** : +33 (0)1 XX XX XX XX
-- **Bug Bounty** : Récompenses pour la découverte de vulnérabilités
+- **PGP Key** : [Clé publique disponible]
+- **Signal** : +33 (0)1 23 45 67 89
 
-### Signalement d'Incident
+### Délégué à la Protection des Données (DPO)
 
-En cas de suspicion d'incident de sécurité :
-
-1. **Documenter** l'incident (captures d'écran, logs)
-2. **Signaler immédiatement** à l'équipe sécurité
-3. **Ne pas tenter** de reproduire ou exploiter
-4. **Coopérer** avec l'enquête si nécessaire
+- **Email** : dpo@agoraflux.fr
+- **Courrier** : AgoraFlux DPO, [Adresse postale]
+- **Téléphone** : +33 (0)1 23 45 67 90
 
 ---
 
-*Cette politique est mise à jour régulièrement. Dernière révision : Janvier 2025* 
+*Cette politique est mise à jour régulièrement. Dernière révision : Janvier 2025*
+*Version : 2.0.0* 
