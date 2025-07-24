@@ -156,4 +156,3 @@ La suite de tests AgoraFlux présente une **excellente stabilité** avec un taux
 - Tests E2E à implémenter
 - Tests de charge à planifier
 
-La plateforme AgoraFlux dispose d'une **base solide** pour une montée en charge des tests parallèlement au développement des fonctionnalités. 

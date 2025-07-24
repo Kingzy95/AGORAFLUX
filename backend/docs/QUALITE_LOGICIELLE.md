@@ -2,7 +2,7 @@
 
 *Document de validation finale - 24 janvier 2025*
 
-## Prérequis Master Satisfaits
+## Prérequis BTTF
 
 ### 1. Suite de tests unitaires pour le cœur de l'application
 

@@ -448,5 +448,3 @@ python scripts/verify_security_integrity.py
 ```
 
 ---
-
-*Cette documentation technique est maintenue à jour avec chaque version du système de sécurité AgoraFlux.* 

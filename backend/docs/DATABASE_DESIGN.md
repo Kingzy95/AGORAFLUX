@@ -76,7 +76,7 @@ Système de collaboration asynchrone avec modération :
 User (1) ----< Project (1) ----< Dataset
   |                |                |
   |                |                |
-  +-------< Comment <--------------+
+  +-----------< Comment <-----------+
           (auteur)    (projet)   (dataset)
 ```
 
