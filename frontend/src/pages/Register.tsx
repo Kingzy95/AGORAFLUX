@@ -49,6 +49,29 @@ const Register: React.FC = () => {
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [isValidating, setIsValidating] = useState(false);
 
+  // Validation du mot de passe selon les politiques de sécurité AgoraFlux
+  const validatePassword = (value: string): string => {
+    if (value.length < 8) return 'Le mot de passe doit contenir au moins 8 caractères';
+    if (!/[a-z]/.test(value)) return 'Le mot de passe doit contenir au moins une lettre minuscule';
+    if (!/[A-Z]/.test(value)) return 'Le mot de passe doit contenir au moins une lettre majuscule';
+    if (!/[0-9]/.test(value)) return 'Le mot de passe doit contenir au moins un chiffre';
+    if (!/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(value)) return 'Le mot de passe doit contenir au moins un caractère spécial';
+    return '';
+  };
+
+  // Fonction pour vérifier les critères individuels du mot de passe
+  const getPasswordCriteria = (password: string) => {
+    return {
+      length: password.length >= 8,
+      lowercase: /[a-z]/.test(password),
+      uppercase: /[A-Z]/.test(password),
+      number: /[0-9]/.test(password),
+      special: /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password)
+    };
+  };
+
+  const passwordCriteria = getPasswordCriteria(formData.password);
+
   // Validation des champs en temps réel
   const validateField = (name: string, value: string): string | undefined => {
     switch (name) {
@@ -60,11 +83,7 @@ const Register: React.FC = () => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return !emailRegex.test(value) ? 'Adresse email invalide' : undefined;
       case 'password':
-        if (value.length < 6) return 'Le mot de passe doit contenir au moins 6 caractères';
-        if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(value)) {
-          return 'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre';
-        }
-        return undefined;
+        return validatePassword(value);
       case 'confirmPassword':
         return value !== formData.password ? 'Les mots de passe ne correspondent pas' : undefined;
       case 'bio':
@@ -304,58 +323,65 @@ const Register: React.FC = () => {
                 )}
               </div>
 
-              {/* Mot de passe */}
+              {/* Champ mot de passe avec exigences */}
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium">
-                  Mot de passe *
-                </Label>
+                <Label htmlFor="password">Mot de passe *</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
-                    id="password"
-                    name="password"
                     type={showPassword ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    required
-                    placeholder="Créez un mot de passe"
+                    name="password"
+                    id="password"
+                    placeholder="Votre mot de passe"
                     value={formData.password}
                     onChange={handleChange}
                     className={`pl-10 pr-10 ${errors.password ? 'border-red-500' : ''}`}
+                    disabled={isLoading}
                   />
-                  <Button
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-1 top-1 h-8 w-8 px-0"
                     onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    disabled={isLoading}
                   >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </Button>
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
                 
-                {/* Indicateur de force du mot de passe */}
+                {/* Affichage des exigences de mot de passe */}
                 {formData.password && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full transition-all duration-300 ${passwordStrength.color}`}
-                          style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
-                        />
+                  <div className="bg-gray-50 p-3 rounded-md space-y-2">
+                    <p className="text-sm font-medium text-gray-700">Exigences du mot de passe :</p>
+                    <div className="grid grid-cols-1 gap-1 text-xs">
+                      <div className={`flex items-center gap-2 ${passwordCriteria.length ? 'text-green-600' : 'text-gray-500'}`}>
+                        {passwordCriteria.length ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                        Au moins 8 caractères
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        {passwordStrength.label}
-                      </span>
+                      <div className={`flex items-center gap-2 ${passwordCriteria.lowercase ? 'text-green-600' : 'text-gray-500'}`}>
+                        {passwordCriteria.lowercase ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                        Une lettre minuscule (a-z)
+                      </div>
+                      <div className={`flex items-center gap-2 ${passwordCriteria.uppercase ? 'text-green-600' : 'text-gray-500'}`}>
+                        {passwordCriteria.uppercase ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                        Une lettre majuscule (A-Z)
+                      </div>
+                      <div className={`flex items-center gap-2 ${passwordCriteria.number ? 'text-green-600' : 'text-gray-500'}`}>
+                        {passwordCriteria.number ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                        Un chiffre (0-9)
+                      </div>
+                      <div className={`flex items-center gap-2 ${passwordCriteria.special ? 'text-green-600' : 'text-gray-500'}`}>
+                        {passwordCriteria.special ? <CheckCircle className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                        Un caractère spécial (!@#$%^&*)
+                      </div>
                     </div>
                   </div>
                 )}
                 
                 {errors.password && (
-                  <p className="text-xs text-red-500">{errors.password}</p>
+                  <div className="flex items-center gap-2 text-red-600 text-sm">
+                    <AlertCircle className="h-4 w-4" />
+                    {errors.password}
+                  </div>
                 )}
               </div>
 
@@ -408,11 +434,21 @@ const Register: React.FC = () => {
                   <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
                   <div>
                     En créant un compte, vous acceptez nos{' '}
-                    <Button variant="link" size="sm" className="text-xs p-0 h-auto underline">
+                    <Button 
+                      variant="link" 
+                      size="sm" 
+                      className="text-xs p-0 h-auto underline"
+                      onClick={() => navigate('/terms-of-service')}
+                    >
                       conditions d'utilisation
                     </Button>
                     {' '}et notre{' '}
-                    <Button variant="link" size="sm" className="text-xs p-0 h-auto underline">
+                    <Button 
+                      variant="link" 
+                      size="sm" 
+                      className="text-xs p-0 h-auto underline"
+                      onClick={() => navigate('/privacy-policy')}
+                    >
                       politique de confidentialité
                     </Button>
                     . Vos données sont protégées selon le RGPD.

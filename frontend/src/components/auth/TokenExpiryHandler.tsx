@@ -12,7 +12,14 @@ const TokenExpiryHandler: React.FC = () => {
     if (isLoading) return;
 
     // Si l'utilisateur n'est pas authentifié et qu'il n'est pas sur une page publique
-    const publicPaths = ['/', '/login', '/register'];
+    const publicPaths = [
+      '/', 
+      '/login', 
+      '/register', 
+      '/forgot-password',
+      '/terms-of-service',
+      '/privacy-policy'
+    ];
     const isPublicPath = publicPaths.includes(location.pathname);
 
     if (!isAuthenticated && !isPublicPath) {

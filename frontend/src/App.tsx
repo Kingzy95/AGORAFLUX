@@ -27,6 +27,8 @@ import CommunityDashboard from './pages/CommunityDashboard';
 import ReportsDashboard from './pages/ReportsDashboard';
 import NotificationsPage from './pages/NotificationsPage';
 import HelpPage from './pages/HelpPage';
+import TermsOfService from './pages/TermsOfService';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import NotFound from './pages/NotFound';
 import Unauthorized from './pages/Unauthorized';
 
@@ -65,6 +67,10 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            
+            {/* Routes légales (sans layout pour affichage pleine page) */}
+            <Route path="/terms-of-service" element={<TermsOfService />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             
             {/* Routes avec Dashboard Layout */}
             <Route path="/dashboard" element={<DashboardLayout />}>

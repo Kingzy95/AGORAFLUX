@@ -265,11 +265,21 @@ const Login: React.FC = () => {
         {/* Footer */}
         <p className="text-center text-xs text-muted-foreground">
           En vous connectant, vous acceptez nos{' '}
-          <Button variant="link" size="sm" className="text-xs p-0 h-auto">
+          <Button 
+            variant="link" 
+            size="sm" 
+            className="text-xs p-0 h-auto"
+            onClick={() => navigate('/terms-of-service')}
+          >
             conditions d'utilisation
           </Button>
           {' '}et notre{' '}
-          <Button variant="link" size="sm" className="text-xs p-0 h-auto">
+          <Button 
+            variant="link" 
+            size="sm" 
+            className="text-xs p-0 h-auto"
+            onClick={() => navigate('/privacy-policy')}
+          >
             politique de confidentialité
           </Button>
         </p>
