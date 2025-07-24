@@ -115,6 +115,8 @@ class ProjectPublic(BaseModel):
     published_at: Optional[datetime]
     view_count: int
     contributor_count: int
+    datasets_count: int  # Ajout du compteur de datasets
+    comments_count: int  # Ajout du compteur de commentaires
     owner_id: int  # Ajout de l'owner_id pour le frontend
     owner: UserPublic
 

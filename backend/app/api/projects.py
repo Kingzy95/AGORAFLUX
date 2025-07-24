@@ -1,19 +1,24 @@
 """
-Endpoints API pour les projets AgoraFlux
+API des projets collaboratifs pour AgoraFlux
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from sqlalchemy import desc, and_, or_, func
+from typing import Optional, List
 from datetime import datetime
-import re
+import uuid
+import asyncio
+import os
+import shutil
 
 from app.core.database import get_db
 from app.api.dependencies import get_current_user
 from app.models.user import User
 from app.models.project import Project, ProjectStatus, ProjectVisibility
 from app.models.comment import Comment, CommentType, CommentStatus
-from app.models.permissions import ProjectRole
+from app.models.permissions import ProjectPermission, ProjectRole
+from app.models.dataset import Dataset
 from app.services.permission_service import PermissionService
 from app.schemas.project import (
     ProjectCreate, ProjectUpdate, ProjectPublic, ProjectSummary,
@@ -23,12 +28,98 @@ from app.schemas.project import (
 router = APIRouter()
 
 
+def apply_access_filters(query, current_user: User):
+    """
+    Applique les filtres d'accès selon les permissions de l'utilisateur
+    """
+    if current_user.role.value == 'admin':
+        # Les admins peuvent voir tous les projets
+        return query
+    else:
+        # Les utilisateurs normaux ne peuvent voir que :
+        # 1. Les projets ACTIVE et COMPLETED (publics)
+        # 2. Leurs propres projets (tous statuts)
+        return query.filter(
+            or_(
+                # Projets publics (active/completed)
+                Project.status.in_([ProjectStatus.ACTIVE, ProjectStatus.COMPLETED]),
+                # Leurs propres projets (tous statuts)
+                Project.owner_id == current_user.id
+            )
+        )
+
+
 def generate_slug(title: str) -> str:
     """Génère un slug unique à partir du titre"""
     # Convertir en minuscules et remplacer les espaces et caractères spéciaux
     slug = re.sub(r'[^\w\s-]', '', title.lower())
     slug = re.sub(r'[-\s]+', '-', slug)
     return slug.strip('-')
+
+
+@router.get("/")
+async def get_all_projects(
+    skip: int = 0,
+    limit: int = 100,
+    status: Optional[str] = None,
+    visibility: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Récupère la liste de tous les projets avec pagination
+    Filtre automatiquement les projets selon les permissions d'accès
+    """
+    query = db.query(Project)
+    
+    # RESTRICTION D'ACCÈS : Appliquer les filtres selon les permissions
+    query = apply_access_filters(query, current_user)
+    
+    # Filtres optionnels
+    if status:
+        try:
+            status_enum = ProjectStatus(status)
+            query = query.filter(Project.status == status_enum)
+        except ValueError:
+            pass
+    
+    if visibility:
+        try:
+            visibility_enum = ProjectVisibility(visibility)
+            query = query.filter(Project.visibility == visibility_enum)
+        except ValueError:
+            pass
+    
+    # Ordre par date de mise à jour (plus récents en premier)
+    query = query.order_by(Project.updated_at.desc())
+    
+    # Compter le total avant pagination
+    total = query.count()
+    
+    # Pagination
+    projects = query.offset(skip).limit(limit).all()
+    
+    # Recalculer les compteurs pour chaque projet
+    for project in projects:
+        actual_datasets_count = db.query(Dataset).filter(Dataset.project_id == project.id).count()
+        actual_comments_count = db.query(Comment).filter(Comment.project_id == project.id).count()
+        
+        if project.datasets_count != actual_datasets_count:
+            project.datasets_count = actual_datasets_count
+            
+        if project.comments_count != actual_comments_count:
+            project.comments_count = actual_comments_count
+    
+    # Sauvegarder les corrections
+    db.commit()
+    
+    # Retourner la structure attendue par le frontend
+    return {
+        "projects": [ProjectPublic.from_orm(project) for project in projects],
+        "total": total,
+        "page": (skip // limit) + 1 if limit > 0 else 1,
+        "per_page": limit
+    }
 
 
 @router.get("/discussions")
@@ -131,12 +222,16 @@ async def get_projects(
     tags: Optional[str] = None,
     sort_by: str = Query("created_at", regex="^(created_at|updated_at|title|view_count)$"),
     sort_order: str = Query("desc", regex="^(asc|desc)$"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Récupère la liste paginée des projets
+    Récupère la liste paginée des projets avec restriction d'accès
     """
     query = db.query(Project)
+    
+    # RESTRICTION D'ACCÈS : Appliquer les filtres selon les permissions
+    query = apply_access_filters(query, current_user)
     
     # Filtres
     if status:
@@ -179,10 +274,11 @@ async def get_projects(
 @router.get("/{project_id}", response_model=ProjectPublic)
 async def get_project(
     project_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Récupère un projet par son ID
+    Récupère un projet par son ID avec vérification des permissions d'accès
     """
     project = db.query(Project).filter(Project.id == project_id).first()
     
@@ -191,10 +287,35 @@ async def get_project(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Projet non trouvé"
         )
+
+    # VÉRIFICATION DES PERMISSIONS D'ACCÈS
+    if current_user.role.value != 'admin':
+        # Si ce n'est pas un admin, vérifier les permissions
+        if project.status in [ProjectStatus.DRAFT, ProjectStatus.ARCHIVED]:
+            # Seul le propriétaire peut voir ses projets en brouillon/archivé
+            if project.owner_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Projet non trouvé"  # Ne pas révéler que le projet existe
+                )
+    
+    # Recalculer les compteurs en temps réel pour s'assurer qu'ils sont corrects
+    actual_datasets_count = db.query(Dataset).filter(Dataset.project_id == project_id).count()
+    actual_comments_count = db.query(Comment).filter(Comment.project_id == project_id).count()
+    
+    # Mettre à jour les compteurs si ils sont incorrects
+    if project.datasets_count != actual_datasets_count:
+        project.datasets_count = actual_datasets_count
+        
+    if project.comments_count != actual_comments_count:
+        project.comments_count = actual_comments_count
     
     # Incrémenter le compteur de vues
     project.view_count += 1
+    
+    # Sauvegarder les modifications
     db.commit()
+    db.refresh(project)
     
     return ProjectPublic.from_orm(project)
 
@@ -1053,3 +1174,63 @@ async def delete_comment_permanently(
     db.commit()
     
     return {"message": "Commentaire supprimé définitivement"} 
+
+
+@router.post("/admin/fix-counters")
+async def fix_all_counters(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Corrige tous les compteurs de datasets et commentaires des projets
+    Réservé aux administrateurs
+    """
+    # Vérifier les permissions admin
+    if current_user.role.value != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Accès refusé : seuls les administrateurs peuvent corriger les compteurs"
+        )
+    
+    try:
+        # Récupérer tous les projets
+        projects = db.query(Project).all()
+        corrections_made = 0
+        
+        for project in projects:
+            # Recalculer le nombre réel de datasets
+            actual_datasets_count = db.query(Dataset).filter(Dataset.project_id == project.id).count()
+            
+            # Recalculer le nombre réel de commentaires
+            actual_comments_count = db.query(Comment).filter(Comment.project_id == project.id).count()
+            
+            # Vérifier s'il y a des différences
+            datasets_changed = project.datasets_count != actual_datasets_count
+            comments_changed = project.comments_count != actual_comments_count
+            
+            if datasets_changed or comments_changed:
+                corrections_made += 1
+                print(f"🔧 Correction projet {project.id} ({project.title}):")
+                if datasets_changed:
+                    print(f"   - Datasets: {project.datasets_count} → {actual_datasets_count}")
+                    project.datasets_count = actual_datasets_count
+                if comments_changed:
+                    print(f"   - Commentaires: {project.comments_count} → {actual_comments_count}")
+                    project.comments_count = actual_comments_count
+        
+        # Sauvegarder toutes les corrections
+        db.commit()
+        
+        return {
+            "message": f"Correction terminée : {corrections_made} projets corrigés",
+            "total_projects": len(projects),
+            "corrections_made": corrections_made,
+            "status": "success"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de la correction des compteurs: {str(e)}"
+        ) 

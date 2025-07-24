@@ -33,10 +33,21 @@ const Projects: React.FC = () => {
           search: searchTerm || undefined
         });
         
-        setProjects(response.projects);
+        // Vérifier la structure de la réponse
+        if (Array.isArray(response)) {
+          // Si la réponse est directement un tableau
+          setProjects(response);
+        } else if (response && Array.isArray(response.projects)) {
+          // Si la réponse a une propriété projects
+          setProjects(response.projects);
+        } else {
+          console.warn('Structure de réponse inattendue:', response);
+          setProjects([]);
+        }
       } catch (err: any) {
         console.error('Erreur lors du chargement des projets:', err);
         setError(err.response?.data?.detail || 'Erreur lors du chargement des projets');
+        setProjects([]); // S'assurer que projects reste un tableau
       } finally {
         setIsLoading(false);
       }
@@ -46,7 +57,7 @@ const Projects: React.FC = () => {
   }, [selectedStatus, searchTerm]);
 
   // Filtrage et tri des projets côté frontend
-  const filteredProjects = projects
+  const filteredProjects = (projects || [])
     .filter(project => {
       const matchesSearch = project.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            project.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -72,7 +83,7 @@ const Projects: React.FC = () => {
 
   // Extraction des catégories depuis les tags des projets
   const categories = ['all', ...Array.from(new Set(
-    projects
+    (projects || [])
       .filter(p => p.tags)
       .map(p => p.tags!.split(',')[0].trim())
       .filter(Boolean)
