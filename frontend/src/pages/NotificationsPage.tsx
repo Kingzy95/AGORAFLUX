@@ -214,7 +214,7 @@ const NotificationsPage: React.FC = () => {
                   Tout marquer comme lu
                 </button>
               )}
-              {user && (user.role === 'admin' || user.role === 'moderateur') && (
+              {/* {user && (user.role === 'admin' || user.role === 'moderateur') && (
                 <button
                   onClick={handleDeleteTestNotifications}
                   disabled={loading}
@@ -223,7 +223,7 @@ const NotificationsPage: React.FC = () => {
                   <Trash2 className="h-4 w-4" />
                   Supprimer les notifications de test
                 </button>
-              )}
+              )} */}
             </div>
           </div>
         </div>

@@ -279,6 +279,13 @@ export const useNotifications = () => {
   const loadNotifications = async () => {
     try {
       const token = localStorage.getItem('token');
+      
+      // Vérifier que le token existe
+      if (!token) {
+        console.warn('Aucun token d\'authentification trouvé');
+        return;
+      }
+      
       const response = await fetch(`http://localhost:8000/api/v1/notifications/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -289,6 +296,13 @@ export const useNotifications = () => {
         const data = await response.json();
         setNotifications(data);
         setUnreadCount(data.filter((n: Notification) => !n.is_read).length);
+      } else if (response.status === 401) {
+        // Token expiré - sera géré par TokenExpiryHandler
+        console.warn('Token expiré lors du chargement des notifications');
+        setNotifications([]);
+        setUnreadCount(0);
+      } else {
+        console.error('Erreur lors du chargement des notifications:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Erreur lors du chargement des notifications:', error);
