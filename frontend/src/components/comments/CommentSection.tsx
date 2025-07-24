@@ -34,10 +34,17 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   const [filter, setFilter] = useState<'all' | 'comments' | 'suggestions' | 'questions'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'most_liked'>('newest');
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Charger les commentaires
   useEffect(() => {
     loadComments();
+    
+    // Recharger périodiquement pour détecter les changements de modération
+    const interval = setInterval(() => {
+      loadComments();
+    }, 30000); // Recharger toutes les 30 secondes
+    
+    return () => clearInterval(interval);
   }, [projectId]);
 
   const loadComments = async () => {
@@ -46,7 +53,11 @@ const CommentSection: React.FC<CommentSectionProps> = ({
     
     try {
       const response = await apiService.getComments(projectId);
-      setComments(response.comments || []);
+      // Filtrer automatiquement les commentaires masqués ou supprimés pour les utilisateurs normaux
+      const visibleComments = response.comments.filter(comment => 
+        comment.status === 'active' || comment.status === 'ACTIVE'
+      );
+      setComments(visibleComments || []);
     } catch (err: any) {
       console.error('Erreur lors du chargement des commentaires:', err);
       setError('Erreur lors du chargement des commentaires');

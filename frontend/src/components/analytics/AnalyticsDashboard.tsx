@@ -2,13 +2,31 @@ import React, { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useVisualizationData, useDataPipeline } from '../../hooks';
 import RealDataVisualization from './RealDataVisualization';
-import BarChart from '../charts/BarChart';
-import PieChart from '../charts/PieChart';
-import LineChart from '../charts/LineChart';
 import InteractiveMap from '../maps/InteractiveMap';
+import { Badge } from '../ui';
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  Legend
+} from 'recharts';
 
 const AnalyticsDashboard: React.FC = () => {
   const { user } = useAuth();
+  
+  // Vérification des permissions pour le pipeline
+  const isAdmin = user?.role === 'admin';
+  const isModerator = user?.role === 'moderateur';
+  const canAccessPipeline = isAdmin || isModerator;
   
   // Hooks pour les données
   const { 
@@ -39,7 +57,7 @@ const AnalyticsDashboard: React.FC = () => {
 
   // États pour les interactions
   const [showPipelineDialog, setShowPipelineDialog] = useState(false);
-  const [useDebugData, setUseDebugData] = useState(false); // Vraies données par défaut
+  const [useDebugData, setUseDebugData] = useState(false);
   const [isRunningPipeline, setIsRunningPipeline] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -49,7 +67,6 @@ const AnalyticsDashboard: React.FC = () => {
       await runPipeline(useDebugData);
       alert('Pipeline lancé avec succès ! Les données vont être mises à jour.');
       setShowPipelineDialog(false);
-      // Actualiser les données après un délai
       setTimeout(() => {
         refreshData();
       }, 2000);
@@ -90,6 +107,20 @@ const AnalyticsDashboard: React.FC = () => {
     return 'Aucune exécution';
   };
 
+  // Couleurs modernes pour les graphiques
+  const COLORS = [
+    '#3b82f6', // blue-500
+    '#10b981', // emerald-500
+    '#f59e0b', // amber-500
+    '#ef4444', // red-500
+    '#8b5cf6', // violet-500
+    '#06b6d4', // cyan-500
+    '#84cc16', // lime-500
+    '#f97316', // orange-500
+    '#ec4899', // pink-500
+    '#6366f1'  // indigo-500
+  ];
+
   if (dataLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -111,122 +142,103 @@ const AnalyticsDashboard: React.FC = () => {
         <p className="text-muted-foreground mt-2">
           Explorez les données avec des graphiques interactifs, cartes et métriques en temps réel.
         </p>
-        <div className="flex items-center gap-4 mt-4">
-          <select 
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            defaultValue="6months"
-          >
-            <option value="1month">1 mois</option>
-            <option value="3months">3 mois</option>
-            <option value="6months">6 mois</option>
-            <option value="1year">1 an</option>
-          </select>
-          
-          <button 
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="p-2 text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50"
-            title="Actualiser les données"
-          >
-            <span className="material-icons">refresh</span>
-          </button>
-
-          <div className="flex gap-2">
-            <span className="px-3 py-1 bg-gray-100 text-gray-800 text-sm rounded-full">
-              Dernière MAJ: Aujourd'hui 14h30
+        {useMockData && (
+          <div className="mt-3">
+            <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+              🔄 Mode démonstration - Données de test utilisées
             </span>
-            {useMockData && (
-              <span className="px-3 py-1 bg-orange-100 text-orange-800 text-sm rounded-full">
-                Mode démonstration
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Pipeline Control Panel */}
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <span className="material-icons text-blue-500 text-2xl">storage</span>
-            <h2 className="text-xl font-bold text-foreground">Pipeline de Données</h2>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPipelineStatusColor()}`}>
-              {getPipelineStatusText()}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={refreshPipelineData}
-              disabled={pipelineLoading}
-              className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
-              title="Actualiser"
-            >
-              <span className="material-icons">refresh</span>
-            </button>
-            <button
-              onClick={() => setShowPipelineDialog(true)}
-              disabled={pipelineStatus?.is_running || isRunningPipeline || pipelineLoading}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <span className="material-icons text-lg">play_arrow</span>
-              Lancer Pipeline
-            </button>
-          </div>
-        </div>
-
-        {pipelineError && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 text-sm">{pipelineError}</p>
           </div>
         )}
 
-        {(pipelineStatus?.is_running || isRunningPipeline) && (
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-blue-800 text-sm mb-2">Pipeline en cours d'exécution...</p>
-            <div className="w-full bg-blue-200 rounded-full h-2">
-              <div className="bg-blue-500 h-2 rounded-full animate-pulse" style={{width: '60%'}}></div>
+      </div>
+
+      {/* Pipeline Control Panel - Accès restreint Admin/Modérateur */}
+      {canAccessPipeline && (
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <span className="material-icons text-blue-500 text-2xl">storage</span>
+              <h2 className="text-xl font-bold text-foreground">Pipeline de Données</h2>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPipelineStatusColor()}`}>
+                {getPipelineStatusText()}
+              </span>
+              <Badge variant="secondary" className="text-xs">
+                {isAdmin ? 'Admin' : 'Modérateur'}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={refreshPipelineData}
+                disabled={pipelineLoading}
+                className="p-2 text-gray-500 hover:text-gray-700 transition-colors rounded-lg hover:bg-gray-100"
+                title="Actualiser"
+              >
+                <span className="material-icons">refresh</span>
+              </button>
+              <button
+                onClick={() => setShowPipelineDialog(true)}
+                disabled={pipelineStatus?.is_running || isRunningPipeline || pipelineLoading}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                <span className="material-icons text-lg">play_arrow</span>
+                Lancer Pipeline
+              </button>
             </div>
           </div>
-        )}
 
-        {/* Statistiques du pipeline */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-gray-50 rounded-lg p-4 text-center">
-            <span className="material-icons text-blue-500 text-3xl mb-2 block">folder</span>
-            <p className="text-2xl font-bold text-foreground">{pipelineSources?.length || 0}</p>
-            <p className="text-sm text-muted-foreground">Sources configurées</p>
-          </div>
-          
-          <div className="bg-gray-50 rounded-lg p-4 text-center">
-            <span className="material-icons text-green-500 text-3xl mb-2 block">assessment</span>
-            <p className="text-2xl font-bold text-foreground">{pipelineDatasets?.length || 0}</p>
-            <p className="text-sm text-muted-foreground">Datasets traités</p>
-          </div>
-          
-          <div className="bg-gray-50 rounded-lg p-4 text-center">
-            <span className="material-icons text-purple-500 text-3xl mb-2 block">schedule</span>
-            <p className="text-2xl font-bold text-foreground">
-              {lastRun?.started_at ? new Date(lastRun.started_at).toLocaleDateString() : 'N/A'}
-            </p>
-            <p className="text-sm text-muted-foreground">Dernière exécution</p>
+          {pipelineError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-800 text-sm">{pipelineError}</p>
+            </div>
+          )}
+
+          {(pipelineStatus?.is_running || isRunningPipeline) && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-blue-800 text-sm mb-2">Pipeline en cours d'exécution...</p>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div className="bg-blue-500 h-2 rounded-full animate-pulse" style={{width: '60%'}}></div>
+              </div>
+            </div>
+          )}
+
+          {/* Statistiques du pipeline */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-gray-50 rounded-lg p-4 text-center">
+              <span className="material-icons text-blue-500 text-3xl mb-2 block">folder</span>
+              <p className="text-2xl font-bold text-foreground">{pipelineSources?.length || 0}</p>
+              <p className="text-sm text-muted-foreground">Sources configurées</p>
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-4 text-center">
+              <span className="material-icons text-green-500 text-3xl mb-2 block">assessment</span>
+              <p className="text-2xl font-bold text-foreground">{pipelineDatasets?.length || 0}</p>
+              <p className="text-sm text-muted-foreground">Datasets traités</p>
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-4 text-center">
+              <span className="material-icons text-purple-500 text-3xl mb-2 block">schedule</span>
+              <p className="text-2xl font-bold text-foreground">
+                {lastRun?.started_at ? new Date(lastRun.started_at).toLocaleDateString() : 'N/A'}
+              </p>
+              <p className="text-sm text-muted-foreground">Dernière exécution</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Erreurs de données */}
-      {dataError && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+      {/* Message informatif pour les utilisateurs sans accès */}
+      {!canAccessPipeline && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
           <div className="flex items-center gap-3">
-            <span className="material-icons text-red-500">error</span>
+            <span className="material-icons text-blue-500 text-2xl">info</span>
             <div>
-              <h3 className="font-medium text-red-800">Erreur de chargement des données</h3>
-              <p className="text-red-600 text-sm mt-1">{dataError}</p>
-              <button 
-                onClick={() => setUseMockData(!useMockData)}
-                className="mt-2 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
-              >
-                {useMockData ? "Essayer vraies données" : "Mode démonstration"}
-              </button>
+              <h3 className="text-lg font-semibold text-blue-900">Pipeline de Données</h3>
+              <p className="text-blue-700 mt-1">
+                Le contrôle du pipeline de données est réservé aux administrateurs et modérateurs.
+              </p>
+              <p className="text-sm text-blue-600 mt-2">
+                Votre rôle actuel : <span className="font-medium">{user?.role || 'Non connecté'}</span>
+              </p>
             </div>
           </div>
         </div>
@@ -234,11 +246,11 @@ const AnalyticsDashboard: React.FC = () => {
 
       {/* Métriques principales */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Participants Totaux</p>
-              <p className="text-3xl font-bold text-foreground mt-1">{generalStats.total}</p>
+              <p className="text-sm text-gray-600 font-medium">Participants Totaux</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{generalStats.total}</p>
               <div className="flex items-center gap-1 mt-2">
                 <span className={`material-icons text-sm ${
                   generalStats.changeType === 'increase' ? 'text-green-500' :
@@ -247,7 +259,7 @@ const AnalyticsDashboard: React.FC = () => {
                   {generalStats.changeType === 'increase' ? 'trending_up' :
                    generalStats.changeType === 'decrease' ? 'trending_down' : 'remove'}
                 </span>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-gray-500">
                   {generalStats.change}% {generalStats.period}
                 </span>
               </div>
@@ -256,14 +268,14 @@ const AnalyticsDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Projets Actifs</p>
-              <p className="text-3xl font-bold text-foreground mt-1">{additionalStats.activeProjects}</p>
+              <p className="text-sm text-gray-600 font-medium">Projets Actifs</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{additionalStats.activeProjects}</p>
               <div className="flex items-center gap-1 mt-2">
                 <span className="material-icons text-sm text-green-500">trending_up</span>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-gray-500">
                   +{additionalStats.projectsChange}% ce mois
                 </span>
               </div>
@@ -272,14 +284,14 @@ const AnalyticsDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Commentaires</p>
-              <p className="text-3xl font-bold text-foreground mt-1">{additionalStats.totalComments}</p>
+              <p className="text-sm text-gray-600 font-medium">Commentaires</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{additionalStats.totalComments}</p>
               <div className="flex items-center gap-1 mt-2">
                 <span className="material-icons text-sm text-green-500">trending_up</span>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-gray-500">
                   +{additionalStats.commentsChange}% ce mois
                 </span>
               </div>
@@ -288,14 +300,14 @@ const AnalyticsDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Arrondissements</p>
-              <p className="text-3xl font-bold text-foreground mt-1">{additionalStats.activeDistricts}</p>
+              <p className="text-sm text-gray-600 font-medium">Arrondissements</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{additionalStats.activeDistricts}</p>
               <div className="flex items-center gap-1 mt-2">
                 <span className="material-icons text-sm text-gray-500">remove</span>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-gray-500">
                   Stable ce mois
                 </span>
               </div>
@@ -308,20 +320,51 @@ const AnalyticsDashboard: React.FC = () => {
       {/* Graphiques principaux */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Évolution de la participation */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Évolution de la Participation</h3>
-          <div className="h-64">
+        <div className="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="material-icons text-blue-500">trending_up</span>
+            Évolution de la Participation
+          </h3>
+          <div className="h-80">
             {participationStats.length > 0 ? (
-              <LineChart 
-                data={participationStats}
-                config={{
-                  type: 'line',
-                  title: '',
-                  height: 240,
-                  showLegend: true,
-                  showTooltip: true
-                }}
-              />
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart 
+                  data={participationStats.map(item => ({
+                    name: item.date ? new Date(item.date).toLocaleDateString('fr-FR', { month: 'short' }) : 'N/A',
+                    value: item.value || 0,
+                    fullDate: item.date
+                  }))} 
+                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{ fontSize: 12, fill: '#666' }}
+                    interval={0}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis tick={{ fontSize: 12, fill: '#666' }} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: '1px solid #ccc', 
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                    formatter={(value: any) => [`${value} participants`, 'Participation']}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="value" 
+                    stroke="#3b82f6" 
+                    strokeWidth={3}
+                    dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6, stroke: '#3b82f6', strokeWidth: 2, fill: 'white' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg">
                 <div className="text-center">
@@ -330,6 +373,10 @@ const AnalyticsDashboard: React.FC = () => {
                   <p className="text-sm text-gray-500 mt-1">
                     {participationStats.length} points de données
                   </p>
+                  {/* Debug info */}
+                  <p className="text-xs text-gray-400 mt-2">
+                    Mode: {useMockData ? 'Démonstration' : 'Données réelles'}
+                  </p>
                 </div>
               </div>
             )}
@@ -337,20 +384,40 @@ const AnalyticsDashboard: React.FC = () => {
         </div>
 
         {/* Répartition par âge */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Répartition Démographique</h3>
-          <div className="h-64">
+        <div className="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="material-icons text-green-500">pie_chart</span>
+            Répartition Démographique
+          </h3>
+          <div className="h-80">
             {demographicsData.length > 0 ? (
-              <PieChart 
-                data={demographicsData}
-                config={{
-                  type: 'pie',
-                  title: '',
-                  height: 240,
-                  showLegend: true,
-                  showTooltip: true
-                }}
-              />
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={demographicsData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {demographicsData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: '1px solid #ccc', 
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg">
                 <div className="text-center">
@@ -366,25 +433,44 @@ const AnalyticsDashboard: React.FC = () => {
         </div>
 
         {/* Budget municipal */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Budget Municipal par Secteur</h3>
-          <div className="h-64">
+        <div className="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="material-icons text-yellow-500">bar_chart</span>
+            Budget Municipal par Secteur
+          </h3>
+          <div className="h-80">
             {budgetData.length > 0 ? (
-              <BarChart 
-                data={budgetData.map(item => ({
-                  name: item.category,
-                  value: item.amount,
-                  label: item.category,
-                  color: item.color
-                }))}
-                config={{
-                  type: 'bar',
-                  title: '',
-                  height: 240,
-                  showLegend: true,
-                  showTooltip: true
-                }}
-              />
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={budgetData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="category" 
+                    tick={{ fontSize: 12, fill: '#666' }}
+                    interval={0}
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 12, fill: '#666' }}
+                    tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M€`}
+                  />
+                  <Tooltip 
+                    formatter={(value: any) => [`${(value / 1000000).toFixed(1)}M€`, 'Budget']}
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: '1px solid #ccc', 
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
+                  <Bar 
+                    dataKey="amount" 
+                    fill="#10b981"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg">
                 <div className="text-center">
@@ -400,20 +486,45 @@ const AnalyticsDashboard: React.FC = () => {
         </div>
 
         {/* Satisfaction */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">Satisfaction Utilisateurs</h3>
-          <div className="h-64">
+        <div className="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="material-icons text-purple-500">sentiment_satisfied</span>
+            Satisfaction Utilisateurs
+          </h3>
+          <div className="h-80">
             {satisfactionData.length > 0 ? (
-              <BarChart 
-                data={satisfactionData}
-                config={{
-                  type: 'bar',
-                  title: '',
-                  height: 240,
-                  showLegend: true,
-                  showTooltip: true
-                }}
-              />
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={satisfactionData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{ fontSize: 12, fill: '#666' }}
+                    interval={0}
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 12, fill: '#666' }}
+                    domain={[0, 100]}
+                    tickFormatter={(value) => `${value}%`}
+                  />
+                  <Tooltip 
+                    formatter={(value: any) => [`${value}%`, 'Satisfaction']}
+                    contentStyle={{ 
+                      backgroundColor: 'white', 
+                      border: '1px solid #ccc', 
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
+                  <Bar 
+                    dataKey="value" 
+                    fill="#8b5cf6"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg">
                 <div className="text-center">
@@ -430,8 +541,11 @@ const AnalyticsDashboard: React.FC = () => {
       </div>
 
       {/* Carte interactive */}
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Carte de Participation par Arrondissement</h3>
+      <div className="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow" style={{ height: '32.5rem' }}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <span className="material-icons text-red-500">map</span>
+          Carte de Participation par Arrondissement
+        </h3>
         <div className="h-96">
           {participationData.length > 0 ? (
             <InteractiveMap
@@ -441,7 +555,6 @@ const AnalyticsDashboard: React.FC = () => {
               height={384}
               onMarkerClick={(data) => {
                 console.log('Arrondissement sélectionné:', data);
-                // Vous pouvez ajouter ici une action comme ouvrir un modal avec plus de détails
               }}
               showClusters={false}
             />
@@ -466,12 +579,12 @@ const AnalyticsDashboard: React.FC = () => {
       <RealDataVisualization className="mt-6" />
 
       {/* Dialog de configuration du pipeline */}
-      {showPipelineDialog && (
+      {showPipelineDialog && canAccessPipeline && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
             <div className="flex items-center gap-3 mb-4">
               <span className="material-icons text-blue-500">settings</span>
-              <h3 className="text-xl font-bold text-foreground">Lancer le Pipeline de Données</h3>
+              <h3 className="text-xl font-bold text-gray-900">Lancer le Pipeline de Données</h3>
             </div>
             
             <div className="mb-6">
@@ -482,29 +595,8 @@ const AnalyticsDashboard: React.FC = () => {
                 </p>
               </div>
 
-              {/* <div className="flex items-start gap-3 mb-4">
-                <input
-                  type="checkbox"
-                  id="debugData"
-                  checked={useDebugData}
-                  onChange={(e) => setUseDebugData(e.target.checked)}
-                  className="mt-1"
-                />
-                <div>
-                  <label htmlFor="debugData" className="font-medium text-foreground">
-                    Utiliser les données de démonstration
-                  </label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {useDebugData 
-                      ? 'Le pipeline utilisera des données de test prédéfinies (uniquement pour les démonstrations)'
-                      : 'Le pipeline récupérera les vraies données depuis les APIs publiques françaises (recommandé)'
-                    }
-                  </p>
-                </div>
-              </div> */}
-
               <div className="border-t pt-4">
-                <h4 className="font-medium text-foreground mb-3">Ce qui va être traité :</h4>
+                <h4 className="font-medium text-gray-900 mb-3">Ce qui va être traité :</h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
                     <span className="material-icons text-green-500 text-sm">check_circle</span>
@@ -533,7 +625,7 @@ const AnalyticsDashboard: React.FC = () => {
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowPipelineDialog(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors rounded-lg hover:bg-gray-100"
               >
                 Annuler
               </button>

@@ -229,6 +229,14 @@ class ApiService {
     return response.data;
   }
 
+  async updateProjectStatus(id: number, status: 'draft' | 'active' | 'completed' | 'archived', reason?: string): Promise<Project> {
+    const response: AxiosResponse<Project> = await this.api.patch(`/projects/${id}/status`, { 
+      status, 
+      reason 
+    });
+    return response.data;
+  }
+
   async deleteProject(id: number): Promise<void> {
     await this.api.delete(`/projects/${id}`);
   }
@@ -333,6 +341,53 @@ class ApiService {
 
   async unlikeComment(projectId: number, commentId: number): Promise<void> {
     await this.api.delete(`/projects/${projectId}/comments/${commentId}/like`);
+  }
+
+  // === MODÉRATION DES COMMENTAIRES ===
+
+  async moderateComment(
+    projectId: number, 
+    commentId: number, 
+    action: 'hide' | 'show' | 'pin' | 'unpin' | 'resolve',
+    reason?: string
+  ): Promise<{ message: string; comment: any }> {
+    const response = await this.api.patch(`/projects/${projectId}/comments/${commentId}/moderate`, {
+      action,
+      reason
+    });
+    return response.data;
+  }
+
+  async deleteCommentPermanently(
+    projectId: number, 
+    commentId: number, 
+    reason?: string
+  ): Promise<{ message: string }> {
+    const response = await this.api.delete(`/projects/${projectId}/comments/${commentId}/moderate`, {
+      params: { reason }
+    });
+    return response.data;
+  }
+
+  // Méthodes spécifiques pour faciliter l'usage
+  async hideComment(projectId: number, commentId: number, reason?: string) {
+    return this.moderateComment(projectId, commentId, 'hide', reason);
+  }
+
+  async showComment(projectId: number, commentId: number) {
+    return this.moderateComment(projectId, commentId, 'show');
+  }
+
+  async pinComment(projectId: number, commentId: number) {
+    return this.moderateComment(projectId, commentId, 'pin');
+  }
+
+  async unpinComment(projectId: number, commentId: number) {
+    return this.moderateComment(projectId, commentId, 'unpin');
+  }
+
+  async resolveComment(projectId: number, commentId: number, reason?: string) {
+    return this.moderateComment(projectId, commentId, 'resolve', reason);
   }
 
   // === UTILITAIRES ===

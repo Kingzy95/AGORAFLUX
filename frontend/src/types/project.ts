@@ -96,6 +96,44 @@ export interface Comment {
   replies?: Comment[];
 }
 
+// Types pour les actions de modération
+export interface ModerationAction {
+  action: 'hide' | 'show' | 'pin' | 'unpin' | 'resolve' | 'delete';
+  reason?: string;
+  moderator_id: number;
+  timestamp: string;
+}
+
+export interface ModerationResponse {
+  message: string;
+  comment: {
+    id: number;
+    status: string;
+    is_pinned: boolean;
+    updated_at: string;
+  };
+}
+
+// Types pour les notifications de modération
+export interface ModerationNotification {
+  id: string;
+  type: 'moderation';
+  title: string;
+  message: string;
+  data: {
+    project_id: number;
+    project_name: string;
+    comment_id: number;
+    comment_preview: string;
+    moderator_name: string;
+    reason?: string;
+    action: 'hidden' | 'restored' | 'resolved' | 'deleted';
+  };
+  priority: 'normal' | 'high';
+  is_read: boolean;
+  created_at: string;
+}
+
 export interface CreateProjectRequest {
   title: string;
   description: string;

@@ -76,14 +76,7 @@ const InteractiveMap: React.FC<MapProps> = ({
   }
 
   return (
-    <Card sx={{ p: 3, height: height + 60 }}>
-      <Typography variant="h6" gutterBottom>
-        Carte de participation par arrondissement
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Taille et couleur des cercles proportionnelles au nombre de participants
-      </Typography>
-      
+    <Card sx={{ height: height + 60, boxShadow: 'none' }}>
       <Box sx={{ height, position: 'relative', borderRadius: 1, overflow: 'hidden' }}>
         <MapContainer
           center={center}

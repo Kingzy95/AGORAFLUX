@@ -361,7 +361,7 @@ const NewProject: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Sidebar de progression */}
-          <div className="lg:col-span-1">
+          {/* <div className="lg:col-span-1">
             <Card className="sticky top-4">
               <CardHeader>
                 <CardTitle className="text-lg">Progression</CardTitle>
@@ -418,10 +418,10 @@ const NewProject: React.FC = () => {
                 </Alert>
               </CardContent>
             </Card>
-          </div>
+          </div> */}
 
           {/* Contenu principal */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-6">
             <Tabs value={currentStep.toString()} className="space-y-6">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="1" disabled={currentStep < 1}>

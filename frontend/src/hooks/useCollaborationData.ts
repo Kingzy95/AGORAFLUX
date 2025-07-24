@@ -88,17 +88,17 @@ export const useCollaborationData = (): UseCollaborationDataHook => {
 
       // Les statistiques sont déjà dans le bon format
       const transformedStats: CollaborationStats = {
-        totalAnnotations: statsData.total_annotations,
-        activeDiscussions: statsData.active_discussions,
-        resolvedDiscussions: statsData.resolved_discussions,
-        totalParticipants: statsData.total_participants,
-        totalReplies: statsData.total_replies,
-        avgResponseTime: statsData.avg_response_time,
-        participationRate: statsData.participation_rate,
-        topContributors: statsData.top_contributors
+        totalAnnotations: statsData.total_annotations || 0,
+        activeDiscussions: statsData.active_discussions || 0,
+        resolvedDiscussions: statsData.resolved_discussions || 0,
+        totalParticipants: statsData.total_participants || 0,
+        totalReplies: statsData.total_replies || 0,
+        avgResponseTime: statsData.avg_response_time || '0m',
+        participationRate: statsData.participation_rate || 0,
+        topContributors: statsData.top_contributors || []
       };
 
-      // Mettre à jour les états
+      // Mettre à jour les états avec les vraies données uniquement
       setAnnotations(transformedAnnotations);
       setOnlineUsers(transformedUsers);
       setStats(transformedStats);
@@ -106,6 +106,20 @@ export const useCollaborationData = (): UseCollaborationDataHook => {
     } catch (err: any) {
       console.error('Erreur lors du chargement des données de collaboration:', err);
       setError(err.response?.data?.detail || err.message || 'Erreur lors du chargement des données de collaboration');
+      
+      // En cas d'erreur, garder les données vides - pas de mock
+      setAnnotations([]);
+      setOnlineUsers([]);
+      setStats({
+        totalAnnotations: 0,
+        activeDiscussions: 0,
+        resolvedDiscussions: 0,
+        totalParticipants: 0,
+        totalReplies: 0,
+        avgResponseTime: '0m',
+        participationRate: 0,
+        topContributors: []
+      });
     } finally {
       setIsLoading(false);
     }

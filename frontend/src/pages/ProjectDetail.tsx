@@ -4,6 +4,42 @@ import { useAuth } from '../context/AuthContext';
 import apiService, { BackendComment } from '../services/api';
 import { Project, Dataset, CreateCommentRequest } from '../types/project';
 import { CommentSection } from '../components/comments';
+import { ProjectStatusManager } from '../components/projects/ProjectStatusManager';
+import { ProjectTeam } from '../components/projects/ProjectTeam';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Button,
+  Badge,
+  Avatar,
+  AvatarFallback,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Separator,
+  Alert,
+  AlertDescription,
+} from '../components/ui';
+import {
+  Heart,
+  UserPlus,
+  Eye,
+  Users,
+  Calendar,
+  Clock,
+  MessageSquare,
+  Database,
+  FileText,
+  Activity,
+  Share,
+  Bookmark,
+  Download,
+  Star,
+} from 'lucide-react';
 
 const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -51,6 +87,10 @@ const ProjectDetail: React.FC = () => {
 
     loadProject();
   }, [id]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as 'overview' | 'data' | 'team');
+  };
 
   const loadComments = async () => {
     if (!id) return;
@@ -214,212 +254,318 @@ const ProjectDetail: React.FC = () => {
   }
 
   return (
-    <div className="h-full bg-background">
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* En-tête du projet */}
-        <div className="bg-card rounded-lg border shadow-sm p-6 mb-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-3xl font-bold text-foreground">{project.title}</h1>
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(project.status)}`}>
-                  {getStatusText(project.status)}
-                </span>
-              </div>
-              <p className="text-muted-foreground text-lg leading-relaxed">
-                {project.description}
-              </p>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button className="inline-flex items-center gap-2 px-4 py-2 bg-card border rounded-lg hover:shadow-md transition-all">
-                <span className="material-icons text-sm">favorite_border</span>
-                Suivre le projet
-              </button>
-              <button className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all">
-                <span className="material-icons text-sm">group_add</span>
-                Participer
-              </button>
-            </div>
-          </div>
-
-          {/* Informations du propriétaire et métadonnées */}
-          <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
-            {project.owner && (
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-xs font-medium">
-                  {project.owner.first_name[0]}{project.owner.last_name[0]}
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* En-tête modernisé du projet */}
+        <Card className="mb-8 overflow-hidden">
+          <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex-1 space-y-4">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-4xl font-bold tracking-tight">{project.title}</h1>
+                  <Badge variant={project.status === 'active' ? 'default' : 'secondary'} className="text-sm">
+                    {getStatusText(project.status)}
+                  </Badge>
                 </div>
-                <span>Créé par {project.owner.first_name} {project.owner.last_name}</span>
+                <p className="text-lg text-muted-foreground max-w-3xl">
+                  {project.description}
+                </p>
               </div>
-            )}
-            <div className="flex items-center gap-1">
-              <span className="material-icons text-xs">schedule</span>
-              <span>Créé le {new Date(project.created_at).toLocaleDateString('fr-FR')}</span>
             </div>
-            <div className="flex items-center gap-1">
-              <span className="material-icons text-xs">visibility</span>
-              <span>{project.view_count} vues</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="material-icons text-xs">people</span>
-              <span>{project.contributor_count} contributeurs</span>
+
+            {/* Métadonnées avec design moderne */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {project.owner && (
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-primary text-primary-foreground text-sm">
+                      {project.owner.first_name[0]}{project.owner.last_name[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">Créé par</p>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {project.owner.first_name} {project.owner.last_name}
+                    </p>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Créé le</p>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(project.created_at).toLocaleDateString('fr-FR')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                  <Eye className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{project.view_count}</p>
+                  <p className="text-sm text-muted-foreground">vues</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{project.contributor_count}</p>
+                  <p className="text-sm text-muted-foreground">contributeurs</p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </Card>
 
-        {/* Contenu principal */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Contenu principal avec layout moderne */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Contenu principal */}
           <div className="lg:col-span-2">
-            {/* Navigation par onglets */}
-            <div className="bg-card rounded-lg border shadow-sm mb-6">
-              <div className="border-b border-border">
-                <nav className="flex space-x-8 px-6">
-                  <button
-                    onClick={() => setActiveTab('overview')}
-                    className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                      activeTab === 'overview'
-                        ? 'border-primary text-primary'
-                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
-                    }`}
-                  >
-                    Vue d'ensemble
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('data')}
-                    className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                      activeTab === 'data'
-                        ? 'border-primary text-primary'
-                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
-                    }`}
-                  >
-                    Données ({datasets.length})
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('team')}
-                    className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                      activeTab === 'team'
-                        ? 'border-primary text-primary'
-                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300'
-                    }`}
-                  >
-                    Équipe
-                  </button>
-                </nav>
-              </div>
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="overview" className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  Vue d'ensemble
+                </TabsTrigger>
+                <TabsTrigger value="data" className="gap-2">
+                  <Database className="h-4 w-4" />
+                  Données ({datasets.length})
+                </TabsTrigger>
+                <TabsTrigger value="team" className="gap-2">
+                  <Users className="h-4 w-4" />
+                  Équipe
+                </TabsTrigger>
+              </TabsList>
 
-              {/* Contenu des onglets */}
-              <div className="p-6">
-                {activeTab === 'overview' && (
-                  <div className="space-y-6">
+              <TabsContent value="overview" className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Informations du projet
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
                     {/* Objectifs */}
                     {project.objectives && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground mb-3">Objectifs</h3>
-                        <p className="text-muted-foreground leading-relaxed">{project.objectives}</p>
+                      <div className="space-y-3">
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                          <Star className="h-4 w-4 text-yellow-500" />
+                          Objectifs
+                        </h3>
+                        <p className="text-muted-foreground leading-relaxed pl-6">
+                          {project.objectives}
+                        </p>
                       </div>
                     )}
 
-                    {/* Méthodologie */}
                     {project.methodology && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground mb-3">Méthodologie</h3>
-                        <p className="text-muted-foreground leading-relaxed">{project.methodology}</p>
-                      </div>
+                      <>
+                        <Separator />
+                        <div className="space-y-3">
+                          <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <Activity className="h-4 w-4 text-blue-500" />
+                            Méthodologie
+                          </h3>
+                          <p className="text-muted-foreground leading-relaxed pl-6">
+                            {project.methodology}
+                          </p>
+                        </div>
+                      </>
                     )}
 
-                    {/* Résultats attendus */}
                     {project.expected_outcomes && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground mb-3">Résultats attendus</h3>
-                        <p className="text-muted-foreground leading-relaxed">{project.expected_outcomes}</p>
-                      </div>
+                      <>
+                        <Separator />
+                        <div className="space-y-3">
+                          <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <Download className="h-4 w-4 text-green-500" />
+                            Résultats attendus
+                          </h3>
+                          <p className="text-muted-foreground leading-relaxed pl-6">
+                            {project.expected_outcomes}
+                          </p>
+                        </div>
+                      </>
                     )}
-                  </div>
-                )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-                {activeTab === 'data' && (
-                  <div className="space-y-4">
-                    {datasets.length > 0 ? (
-                      datasets.map((dataset) => (
-                        <div key={dataset.id} className="border border-border rounded-lg p-4">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex-1">
-                              <h4 className="font-medium text-foreground">{dataset.name}</h4>
+              <TabsContent value="data" className="space-y-4">
+                {datasets.length > 0 ? (
+                  <div className="grid gap-4">
+                    {datasets.map((dataset) => (
+                      <Card key={dataset.id} className="hover:shadow-md transition-shadow">
+                        <CardContent className="p-6">
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="space-y-2">
+                              <h4 className="font-semibold text-lg">{dataset.name}</h4>
                               {dataset.description && (
-                                <p className="text-sm text-muted-foreground mt-1">{dataset.description}</p>
+                                <p className="text-muted-foreground">{dataset.description}</p>
                               )}
                             </div>
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getQualityColor(dataset.overall_quality_score)}`}>
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                               {Math.round(dataset.overall_quality_score || 0)}% qualité
-                            </span>
+                            </Badge>
                           </div>
                           
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span className="inline-flex items-center gap-1">
-                              <span className="material-icons text-xs">description</span>
-                              {dataset.type}
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <span className="material-icons text-xs">table_rows</span>
-                              {dataset.rows_count || 0} lignes
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <span className="material-icons text-xs">view_column</span>
-                              {dataset.columns_count || 0} colonnes
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                              <span className="material-icons text-xs">storage</span>
-                              {formatFileSize(dataset.file_size)}
-                            </span>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4" />
+                              <span>{dataset.type}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Database className="h-4 w-4" />
+                              <span>{dataset.rows_count || 0} lignes</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Activity className="h-4 w-4" />
+                              <span>{dataset.columns_count || 0} colonnes</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Download className="h-4 w-4" />
+                              <span>{formatFileSize(dataset.file_size)}</span>
+                            </div>
                           </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <span className="material-icons text-4xl mb-2 block">folder_open</span>
-                        <p>Aucun dataset disponible</p>
-                      </div>
-                    )}
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
+                ) : (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <Database className="h-12 w-12 text-muted-foreground mb-4" />
+                      <p className="text-lg font-medium mb-2">Aucun dataset disponible</p>
+                      <p className="text-muted-foreground text-center">
+                        Ce projet n'a pas encore de données uploadées.
+                      </p>
+                    </CardContent>
+                  </Card>
                 )}
+              </TabsContent>
 
-                {activeTab === 'team' && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <span className="material-icons text-4xl mb-2 block">group</span>
-                    <p>Fonctionnalité équipe à venir</p>
-                  </div>
-                )}
-              </div>
+              <TabsContent value="team">
+                <ProjectTeam 
+                  project={project} 
+                  onProjectUpdate={(updatedProject) => setProject(updatedProject)}
+                />
+              </TabsContent>
+            </Tabs>
+
+              {/* Section commentaires - Masquée si projet terminé */}
+              {project.status !== 'completed' && (
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      Discussions
+                    </CardTitle>
+                    <CardDescription>
+                      Participez aux discussions du projet
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <CommentSection
+                      projectId={parseInt(id!)}
+                      currentUserId={user?.id}
+                      allowComments={project.allow_comments}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Message informatif pour projets terminés */}
+              {project.status === 'completed' && (
+                <Card className="mt-6 border-muted bg-muted/20">
+                  <CardContent className="p-6 text-center">
+                    <MessageSquare className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                    <h3 className="font-medium text-muted-foreground mb-2">Discussions fermées</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Ce projet est terminé. Les discussions sont désormais fermées.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
-          </div>
 
-          {/* Sidebar */}
+          {/* Sidebar modernisée */}
           <div className="space-y-6">
-            {/* Tags */}
-            {project.tags && (
-              <div className="bg-white rounded-lg border border-slate-200 p-4">
-                <h4 className="font-medium text-slate-900 mb-3">Tags</h4>
-                <div className="flex flex-wrap gap-2">
-                  {project.tags.split(',').map((tag, index) => (
-                    <span
-                      key={index}
-                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800"
-                    >
-                      {tag.trim()}
-                    </span>
-                  ))}
-                </div>
-              </div>
+            {/* Actions rapides */}
+
+            {/* Gestion du statut */}
+            {user && project.owner_id === user.id && (
+              <ProjectStatusManager
+                project={project}
+                onStatusUpdate={(updatedProject) => setProject(updatedProject)}
+                canManage={true}
+              />
             )}
 
-            {/* Commentaires avec threads */}
-            <CommentSection
-              projectId={parseInt(id!)}
-              currentUserId={user?.id}
-              allowComments={project.allow_comments}
-            />
+            {/* Statut pour les non-propriétaires */}
+            {user && project.owner_id !== user.id && (
+              <ProjectStatusManager
+                project={project}
+                onStatusUpdate={() => {}}
+                canManage={false}
+              />
+            )}
+
+            {/* Tags avec design moderne */}
+            {project.tags && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Tags</CardTitle>
+                  <CardDescription>
+                    Sujets et catégories du projet
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {project.tags.split(',').map((tag, index) => (
+                      <Badge key={index} variant="secondary" className="text-xs">
+                        {tag.trim()}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Statistiques détaillées */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Statistiques</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <div className="text-2xl font-bold text-primary">{project.view_count}</div>
+                    <div className="text-xs text-muted-foreground">Vues</div>
+                  </div>
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <div className="text-2xl font-bold text-primary">{project.contributor_count}</div>
+                    <div className="text-xs text-muted-foreground">Contributeurs</div>
+                  </div>
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <div className="text-2xl font-bold text-primary">{project.comments_count}</div>
+                    <div className="text-xs text-muted-foreground">Commentaires</div>
+                  </div>
+                  <div className="text-center p-3 bg-muted rounded-lg">
+                    <div className="text-2xl font-bold text-primary">{project.datasets_count}</div>
+                    <div className="text-xs text-muted-foreground">Datasets</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+
           </div>
         </div>
       </div>

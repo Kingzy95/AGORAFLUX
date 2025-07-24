@@ -115,6 +115,7 @@ class ProjectPublic(BaseModel):
     published_at: Optional[datetime]
     view_count: int
     contributor_count: int
+    owner_id: int  # Ajout de l'owner_id pour le frontend
     owner: UserPublic
 
     class Config:

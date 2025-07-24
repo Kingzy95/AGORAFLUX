@@ -643,8 +643,18 @@ async def create_project_comment(
     # Mettre à jour le compteur de commentaires du projet
     project.comments_count += 1
     
+    # Incrémenter le compteur de contributeurs si c'est un nouveau contributeur
+    existing_contributor = db.query(Comment).filter(
+        Comment.project_id == project_id,
+        Comment.author_id == current_user.id,
+        Comment.id != comment.id if hasattr(comment, 'id') else True
+    ).first()
+    
+    if not existing_contributor:
+        # C'est le premier commentaire de cet utilisateur sur ce projet
+        project.contributor_count += 1
+    
     db.commit()
-    db.refresh(comment)
     
     # Créer une notification pour le propriétaire du projet (si différent)
     if project.owner_id != current_user.id:
@@ -840,16 +850,31 @@ async def like_project_comment(
     return {"message": "Commentaire liké", "likes_count": comment.likes_count}
 
 
-@router.delete("/{project_id}/comments/{comment_id}/like")
-async def unlike_project_comment(
+# === ENDPOINTS DE MODÉRATION ===
+
+@router.patch("/{project_id}/comments/{comment_id}/moderate")
+async def moderate_comment(
     project_id: int,
     comment_id: int,
+    action: dict,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Unlike un commentaire
+    Actions de modération sur un commentaire
+    Actions possibles: hide, show, pin, unpin, resolve
     """
+    # Vérifier les permissions de modération
+    if current_user.role.value not in ['admin', 'moderateur']:
+        # Vérifier si c'est le propriétaire du projet
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if not project or project.owner_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permissions insuffisantes pour modérer"
+            )
+    
+    # Récupérer le commentaire
     comment = db.query(Comment).filter(
         Comment.id == comment_id,
         Comment.project_id == project_id
@@ -861,98 +886,170 @@ async def unlike_project_comment(
             detail="Commentaire non trouvé"
         )
     
-    # TODO: Vérifier si l'utilisateur avait liké (table de liaison)
-    comment.likes_count = max(0, comment.likes_count - 1)
-    db.commit()
+    # Récupérer les informations du projet pour les notifications
+    project = db.query(Project).filter(Project.id == project_id).first()
+    action_type = action.get("action")
+    reason = action.get("reason", "")
     
-    return {"message": "Like retiré", "likes_count": comment.likes_count} 
+    # Appliquer l'action de modération
+    notification_data = {
+        "project_id": project_id,
+        "project_name": project.title,
+        "comment_id": comment_id,
+        "comment_preview": comment.content[:100] + "..." if len(comment.content) > 100 else comment.content,
+        "moderator_name": f"{current_user.first_name} {current_user.last_name}",
+        "reason": reason
+    }
+    
+    if action_type == "hide":
+        comment.status = CommentStatus.HIDDEN
+        comment.updated_at = datetime.utcnow()
+        
+        # Notifier l'auteur du commentaire
+        if comment.author_id != current_user.id:
+            from app.api.notifications import create_notification
+            await create_notification(
+                type="moderation",
+                title="Commentaire masqué",
+                message=f"Votre commentaire sur '{project.title}' a été masqué par un modérateur.",
+                recipient_id=str(comment.author_id),
+                sender_id=str(current_user.id),
+                data={**notification_data, "action": "hidden"},
+                priority="high"
+            )
+        
+        message = "Commentaire masqué"
+        
+    elif action_type == "show":
+        comment.status = CommentStatus.ACTIVE
+        comment.updated_at = datetime.utcnow()
+        
+        # Notifier l'auteur du commentaire
+        if comment.author_id != current_user.id:
+            from app.api.notifications import create_notification
+            await create_notification(
+                type="moderation",
+                title="Commentaire restauré",
+                message=f"Votre commentaire sur '{project.title}' a été restauré.",
+                recipient_id=str(comment.author_id),
+                sender_id=str(current_user.id),
+                data={**notification_data, "action": "restored"},
+                priority="normal"
+            )
+        
+        message = "Commentaire restauré"
+        
+    elif action_type == "pin":
+        comment.is_pinned = True
+        comment.updated_at = datetime.utcnow()
+        message = "Commentaire épinglé"
+        
+    elif action_type == "unpin":
+        comment.is_pinned = False
+        comment.updated_at = datetime.utcnow()
+        message = "Commentaire désépinglé"
+        
+    elif action_type == "resolve":
+        comment.status = CommentStatus.HIDDEN  # Marquer comme résolu = masqué
+        comment.updated_at = datetime.utcnow()
+        
+        # Notifier l'auteur du commentaire
+        if comment.author_id != current_user.id:
+            from app.api.notifications import create_notification
+            await create_notification(
+                type="moderation", 
+                title="Discussion résolue",
+                message=f"Votre discussion sur '{project.title}' a été marquée comme résolue.",
+                recipient_id=str(comment.author_id),
+                sender_id=str(current_user.id),
+                data={**notification_data, "action": "resolved"},
+                priority="normal"
+            )
+        
+        message = "Discussion marquée comme résolue"
+        
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Action de modération non valide"
+        )
+    
+    db.commit()
+    db.refresh(comment)
+    
+    return {
+        "message": message,
+        "comment": {
+            "id": comment.id,
+            "status": comment.status.value,
+            "is_pinned": comment.is_pinned,
+            "updated_at": comment.updated_at.isoformat()
+        }
+    }
 
 
-@router.get("/discussions")
-async def get_all_discussions(
-    page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
-    comment_type: Optional[str] = None,
-    search: Optional[str] = None,
-    sort_by: str = Query("created_at", regex="^(created_at|likes_count|replies_count)$"),
-    sort_order: str = Query("desc", regex="^(asc|desc)$"),
+@router.delete("/{project_id}/comments/{comment_id}/moderate")
+async def delete_comment_permanently(
+    project_id: int,
+    comment_id: int,
+    reason: str = "",
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Récupère toutes les discussions/commentaires avec pagination
+    Suppression définitive d'un commentaire (réservé aux admins)
     """
-    query = db.query(Comment).filter(
-        Comment.status == CommentStatus.ACTIVE,
-        Comment.parent_id.is_(None)  # Seulement les commentaires de premier niveau
-    )
+    # Vérifier les permissions (admin uniquement)
+    if current_user.role.value != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seuls les administrateurs peuvent supprimer définitivement"
+        )
     
-    # Filtres
-    if comment_type:
-        try:
-            comment_type_enum = CommentType(comment_type)
-            query = query.filter(Comment.type == comment_type_enum)
-        except ValueError:
-            pass
+    # Récupérer le commentaire
+    comment = db.query(Comment).filter(
+        Comment.id == comment_id,
+        Comment.project_id == project_id
+    ).first()
     
-    if search:
-        search_term = f"%{search}%"
-        query = query.filter(Comment.content.ilike(search_term))
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Commentaire non trouvé"
+        )
     
-    # Jointure avec les tables liées pour optimiser les requêtes
-    query = query.join(Comment.author).join(Comment.project)
+    # Récupérer les informations du projet
+    project = db.query(Project).filter(Project.id == project_id).first()
     
-    # Tri
-    if sort_order == "desc":
-        query = query.order_by(getattr(Comment, sort_by).desc())
-    else:
-        query = query.order_by(getattr(Comment, sort_by).asc())
+    # Marquer comme supprimé définitivement
+    comment.status = CommentStatus.DELETED
+    comment.updated_at = datetime.utcnow()
     
-    # Pagination
-    total = query.count()
-    comments = query.offset((page - 1) * per_page).limit(per_page).all()
+    # Décrémenter les compteurs
+    if project:
+        project.comments_count = max(0, project.comments_count - 1)
     
-    # Formater les commentaires pour le frontend
-    formatted_comments = []
-    for comment in comments:
-        formatted_comments.append({
-            "id": comment.id,
-            "content": comment.content,
-            "type": comment.type.value,
-            "status": comment.status.value,
-            "project": {
-                "id": comment.project.id,
-                "title": comment.project.title,
-                "slug": comment.project.slug
+    # Notifier l'auteur du commentaire
+    if comment.author_id != current_user.id:
+        from app.api.notifications import create_notification
+        await create_notification(
+            type="moderation",
+            title="Commentaire supprimé",
+            message=f"Votre commentaire sur '{project.title}' a été supprimé définitivement par un administrateur.",
+            recipient_id=str(comment.author_id),
+            sender_id=str(current_user.id),
+            data={
+                "project_id": project_id,
+                "project_name": project.title,
+                "comment_id": comment_id,
+                "comment_preview": comment.content[:100] + "..." if len(comment.content) > 100 else comment.content,
+                "moderator_name": f"{current_user.first_name} {current_user.last_name}",
+                "reason": reason,
+                "action": "deleted"
             },
-            "author": {
-                "id": comment.author.id,
-                "name": f"{comment.author.first_name} {comment.author.last_name}",
-                "avatar": f"{comment.author.first_name[0]}{comment.author.last_name[0]}",
-                "role": comment.author.role.value
-            },
-            "created_at": comment.created_at.isoformat(),
-            "updated_at": comment.updated_at.isoformat() if comment.updated_at else None,
-            "likes_count": comment.likes_count,
-            "replies_count": comment.replies_count,
-            "is_edited": comment.is_edited,
-            "is_pinned": comment.is_pinned
-        })
+            priority="high"
+        )
     
-    return {
-        "discussions": formatted_comments,
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-        "pages": (total + per_page - 1) // per_page,
-        "stats": {
-            "total_discussions": total,
-            "active_discussions": len([c for c in formatted_comments if c["replies_count"] > 0]),
-            "by_type": {
-                "comment": len([c for c in formatted_comments if c["type"] == "comment"]),
-                "question": len([c for c in formatted_comments if c["type"] == "question"]),
-                "suggestion": len([c for c in formatted_comments if c["type"] == "suggestion"]),
-                "annotation": len([c for c in formatted_comments if c["type"] == "annotation"])
-            }
-        }
-    } 
+    db.commit()
+    
+    return {"message": "Commentaire supprimé définitivement"} 

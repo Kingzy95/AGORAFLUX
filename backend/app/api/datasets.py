@@ -16,9 +16,10 @@ from app.api.dependencies import get_current_user
 from app.models.user import User
 from app.models.project import Project
 from app.models.dataset import Dataset, DatasetType, DatasetStatus, DataQuality
+from app.models.comment import Comment
 from app.schemas.dataset import (
     DatasetCreate, DatasetUpdate, DatasetPublic, DatasetSummary,
-    DatasetList, DatasetSearch
+    DatasetList, DatasetUpload, DatasetStats, DatasetValidationResult
 )
 from app.core.config import settings
 
@@ -279,6 +280,22 @@ async def upload_dataset(
         
         # Mettre à jour le compteur de datasets du projet
         project.datasets_count = db.query(Dataset).filter(Dataset.project_id == project_id).count() + 1
+        
+        # Incrémenter le compteur de contributeurs si c'est un nouveau contributeur
+        existing_contributor_datasets = db.query(Dataset).filter(
+            Dataset.project_id == project_id,
+            Dataset.uploaded_by_id == current_user.id,
+            Dataset.id != dataset.id if hasattr(dataset, 'id') else True
+        ).first()
+        
+        existing_contributor_comments = db.query(Comment).filter(
+            Comment.project_id == project_id,
+            Comment.author_id == current_user.id
+        ).first()
+        
+        if not existing_contributor_datasets and not existing_contributor_comments:
+            # C'est la première contribution de cet utilisateur sur ce projet
+            project.contributor_count += 1
         
         db.commit()
         db.refresh(dataset)
