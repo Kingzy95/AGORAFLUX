@@ -26,6 +26,7 @@ import DiscussionsDashboard from './pages/DiscussionsDashboard';
 import CommunityDashboard from './pages/CommunityDashboard';
 import ReportsDashboard from './pages/ReportsDashboard';
 import NotificationsPage from './pages/NotificationsPage';
+import HelpPage from './pages/HelpPage';
 import NotFound from './pages/NotFound';
 import Unauthorized from './pages/Unauthorized';
 
@@ -80,6 +81,10 @@ function App() {
 
             <Route path="/notifications" element={<DashboardLayout />}>
               <Route index element={<NotificationsPage />} />
+            </Route>
+
+            <Route path="/help" element={<DashboardLayout />}>
+              <Route index element={<HelpPage />} />
             </Route>
             
             {/* Routes utilitaires */}

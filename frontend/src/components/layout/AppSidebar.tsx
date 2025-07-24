@@ -99,51 +99,41 @@ export function AppSidebar() {
     switch (user?.role) {
       case 'admin': return 'Admin';
       case 'moderateur': return 'Modérateur';
-      default: return 'Citoyen';
+      case 'utilisateur': return 'Citoyen';
+      default: return 'Invité';
     }
   }, [user?.role]);
 
-  // User role helpers
-  const isAdmin = user?.role === 'admin';
-  const isModerator = user?.role === 'moderateur';
-  const isUser = user?.role === 'utilisateur';
+  // Permission check helper
+  const hasRoleAccess = (requiredRoles: string[]): boolean => {
+    if (!user) return false;
+    return requiredRoles.includes(user.role);
+  };
 
   // Filter navigation items based on user role
   const filterNavigationByRole = (items: NavigationItem[]): NavigationItem[] => {
     return items.filter(item => {
       switch (item.url) {
-        // Pages accessibles à tous les utilisateurs connectés
-        case '/dashboard':
-        case '/projects':
-        case '/export-center':
-        case '/dashboard/community':
-        case '/dashboard/analytics':
-          return true;
-        
-        // Pages réservées aux modérateurs et admins
         case '/dashboard/discussions':
-          return isModerator || isAdmin;
-        
-        // Pages réservées aux admins uniquement
-        case '/dashboard/reports':
-        case '/dashboard/discussions':
+          return hasRoleAccess(['admin', 'moderateur']);
         case '/admin':
-          return isAdmin;
-        
-        // Par défaut, accessible à tous
+          return hasRoleAccess(['admin']);
+        case '/dashboard/analytics':
+        case '/dashboard/reports':
+          return hasRoleAccess(['admin', 'moderateur', 'utilisateur']);
         default:
           return true;
       }
     });
   };
 
-  // Navigation data with role-based filtering
-  const navigationData: NavigationGroup[] = [
+  // Navigation groups
+  const navigationGroups: NavigationGroup[] = [
     {
       title: "Principal",
       items: filterNavigationByRole([
         {
-          title: "Tableau de bord",
+          title: "Dashboard",
           url: "/dashboard",
           icon: BarChart3,
           isActive: isActiveRoute('/dashboard')
@@ -249,8 +239,11 @@ export function AppSidebar() {
                         className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                       >
                         <Avatar className="h-8 w-8 rounded-lg">
-                          <AvatarImage src={user.avatar_url} alt={userDisplayName} />
-                          <AvatarFallback className="rounded-lg bg-primary text-primary-foreground">
+                          <AvatarImage 
+                            src={user.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${userInitials}`} 
+                            alt={userDisplayName} 
+                          />
+                          <AvatarFallback className="rounded-lg">
                             {userInitials}
                           </AvatarFallback>
                         </Avatar>
@@ -258,7 +251,6 @@ export function AppSidebar() {
                           <span className="truncate font-semibold">{userDisplayName}</span>
                           <span className="truncate text-xs text-muted-foreground">
                             {userRole}
-                            {user.is_verified && " • Vérifié"}
                           </span>
                         </div>
                         <ChevronDown className="ml-auto size-4" />
@@ -270,14 +262,18 @@ export function AppSidebar() {
                       align="end"
                       sideOffset={4}
                     >
-                      <DropdownMenuItem onClick={() => handleNavigation('/profile')}>
+                      <DropdownMenuItem onClick={() => handleNavigation('/profile')} className="cursor-pointer">
                         <User className="mr-2 h-4 w-4" />
-                        Profil
+                        <span>Profil</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleNavigation('/settings')} className="cursor-pointer">
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Paramètres</span>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                      <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
                         <LogOut className="mr-2 h-4 w-4" />
-                        Déconnexion
+                        <span>Déconnexion</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -286,33 +282,6 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         )}
-
-        {/* Navigation Groups */}
-        {navigationData.map((group) => (
-          <SidebarGroup key={group.title}>
-            <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={item.isActive}
-                    >
-                      <div onClick={() => handleNavigation(item.url)} className="cursor-pointer">
-                        <item.icon />
-                        <span>{item.title}</span>
-                        {item.badge && (
-                          <SidebarMenuBadge>{item.badge}</SidebarMenuBadge>
-                        )}
-                      </div>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
 
         {/* Quick Actions */}
         <SidebarGroup>
@@ -327,28 +296,35 @@ export function AppSidebar() {
                       <span>{action.title}</span>
                     </div>
                   </SidebarMenuButton>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <SidebarMenuAction showOnHover>
-                        <MoreHorizontal />
-                        <span className="sr-only">Plus</span>
-                      </SidebarMenuAction>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      className="w-48 rounded-lg"
-                      side={isMobile ? "bottom" : "right"}
-                      align="end"
-                    >
-                      <DropdownMenuItem>
-                        <span>Raccourci clavier</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Navigation Groups */}
+        {navigationGroups.map((group) => (
+          <SidebarGroup key={group.title}>
+            <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={item.isActive}>
+                      <div onClick={() => handleNavigation(item.url)} className="cursor-pointer">
+                        <item.icon />
+                        <span>{item.title}</span>
+                        {item.badge && (
+                          <SidebarMenuBadge>{item.badge}</SidebarMenuBadge>
+                        )}
+                      </div>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter>
@@ -364,6 +340,14 @@ export function AppSidebar() {
                     <SidebarMenuBadge>{unreadCount}</SidebarMenuBadge>
                   </>
                 )}
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <div onClick={() => handleNavigation('/help')} className="cursor-pointer">
+                <HelpCircle />
+                <span>Aide</span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
