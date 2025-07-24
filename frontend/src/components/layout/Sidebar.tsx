@@ -68,7 +68,6 @@ const NAVIGATION_ITEMS: NavigationItem[] = [
     label: 'Discussions',
     icon: MessageSquare,
     path: '/dashboard/discussions',
-    badge: 3,
     description: 'Conversations et débats en cours'
   },
   {
@@ -84,6 +83,13 @@ const NAVIGATION_ITEMS: NavigationItem[] = [
     icon: TrendingUp,
     path: '/dashboard/analytics',
     description: 'Analyses détaillées et métriques'
+  },
+  {
+    id: 'reports',
+    label: 'Reports',
+    icon: FileText,
+    path: '/dashboard/reports',
+    description: 'Reports'
   },
   {
     id: 'admin',
