@@ -84,6 +84,10 @@ interface DiscussionStats {
   total_flags: number;
   resolved_today: number;
   pending_moderation: number;
+  by_type: {
+    question: number;
+    suggestion: number;
+  };
 }
 
 const DiscussionsDashboard: React.FC = () => {
@@ -111,12 +115,6 @@ const DiscussionsDashboard: React.FC = () => {
 
   // Chargement des données
   const fetchDiscussions = useCallback(async () => {
-    if (!hasModeratorAccess) {
-      setError('Accès refusé. Seuls les administrateurs et modérateurs peuvent accéder à cette page.');
-      setIsLoading(false);
-      return;
-    }
-
     try {
       setError(null);
       console.log('🔄 Chargement des discussions...');
@@ -146,7 +144,7 @@ const DiscussionsDashboard: React.FC = () => {
         },
         created_at: comment.created_at,
         updated_at: comment.updated_at,
-        status: comment.status,
+        status: comment.status.toUpperCase() as 'ACTIVE' | 'HIDDEN' | 'FLAGGED' | 'DELETED',
         likes_count: comment.likes_count || 0,
         replies_count: comment.replies_count || 0,
         flags_count: comment.flags_count || 0,
@@ -169,6 +167,10 @@ const DiscussionsDashboard: React.FC = () => {
           return new Date(d.updated_at).toDateString() === today && d.status !== 'FLAGGED';
         }).length,
         pending_moderation: transformedDiscussions.filter(d => d.status === 'FLAGGED').length,
+        by_type: {
+          question: 0,
+          suggestion: 0,
+        },
       };
       
       setStats(calculatedStats);
@@ -185,7 +187,7 @@ const DiscussionsDashboard: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, searchTerm, statusFilter, sortBy, sortOrder, hasModeratorAccess]);
+  }, [currentPage, searchTerm, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchDiscussions();
@@ -202,6 +204,12 @@ const DiscussionsDashboard: React.FC = () => {
       switch (action) {
         case 'pin':
           await apiService.pinComment(discussion.project.id, discussionId);
+          break;
+        case 'unpin':
+          await apiService.unpinComment(discussion.project.id, discussionId);
+          break;
+        case 'flag':
+          await apiService.flagComment(discussion.project.id, discussionId);
           break;
         case 'hide':
           await apiService.hideComment(discussion.project.id, discussionId);
@@ -305,9 +313,14 @@ const DiscussionsDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard Modération</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {hasModeratorAccess ? 'Dashboard Modération' : 'Discussions'}
+          </h1>
           <p className="text-gray-600">
-            Gérez les discussions et modérez le contenu de la communauté
+            {hasModeratorAccess 
+              ? 'Gérez les discussions et modérez le contenu de la communauté'
+              : 'Découvrez et participez aux conversations de la communauté'
+            }
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -320,7 +333,7 @@ const DiscussionsDashboard: React.FC = () => {
 
       {/* Statistiques */}
       {stats && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className={`grid gap-4 ${hasModeratorAccess ? 'md:grid-cols-2 lg:grid-cols-4' : 'md:grid-cols-2'}`}>
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Discussions</CardTitle>
@@ -336,42 +349,48 @@ const DiscussionsDashboard: React.FC = () => {
 
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">En Attente</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-orange-500" />
+              <CardTitle className="text-sm font-medium">Par Type</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{stats.pending_moderation}</div>
+              <div className="text-2xl font-bold">{Object.values(stats.by_type).reduce((a, b) => a + b, 0)}</div>
               <p className="text-xs text-muted-foreground">
-                {stats.flagged_discussions} signalées
+                {stats.by_type.question} questions, {stats.by_type.suggestion} suggestions
               </p>
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Traitées Aujourd'hui</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.resolved_today}</div>
-              <p className="text-xs text-muted-foreground">
-                discussions résolues
-              </p>
-            </CardContent>
-          </Card>
+          {hasModeratorAccess && (
+            <>
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">En Attente</CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-orange-600">{stats.pending_moderation}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {stats.flagged_discussions} signalées
+                  </p>
+                </CardContent>
+              </Card>
 
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Signalements</CardTitle>
-              <Flag className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats.total_flags}</div>
-              <p className="text-xs text-muted-foreground">
-                {stats.hidden_discussions} masquées
-              </p>
-            </CardContent>
-          </Card>
+              <Card className="hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Actions Récentes</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-green-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">
+                    {discussions.filter(d => new Date(d.created_at) > new Date(Date.now() - 24*60*60*1000)).length}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    dernières 24h
+                  </p>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
       )}
 
@@ -540,64 +559,84 @@ const DiscussionsDashboard: React.FC = () => {
                                   Voir sur le projet
                                 </DropdownMenuItem>
                                 
-                                <Separator />
-                                
-                                {!discussion.is_pinned ? (
-                                  <DropdownMenuItem
-                                    onClick={() => handleModerationAction('pin', discussion.id)}
-                                    disabled={isLoadingAction === `pin-${discussion.id}`}
-                                  >
-                                    <Pin className="h-4 w-4 mr-2" />
-                                    Épingler
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem
-                                    onClick={() => handleModerationAction('pin', discussion.id)}
-                                    disabled={isLoadingAction === `pin-${discussion.id}`}
-                                  >
-                                    <Pin className="h-4 w-4 mr-2" />
-                                    Désépingler
-                                  </DropdownMenuItem>
+                                {/* Action Signaler - disponible pour tous les utilisateurs */}
+                                {user?.id !== discussion.author.id && discussion.status !== 'FLAGGED' && (
+                                  <>
+                                    <Separator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleModerationAction('flag', discussion.id)}
+                                      disabled={isLoadingAction === `flag-${discussion.id}`}
+                                      className="text-orange-600"
+                                    >
+                                      <Flag className="h-4 w-4 mr-2" />
+                                      Signaler
+                                    </DropdownMenuItem>
+                                  </>
                                 )}
                                 
-                                {discussion.status === 'ACTIVE' ? (
-                                  <DropdownMenuItem
-                                    onClick={() => handleModerationAction('hide', discussion.id)}
-                                    disabled={isLoadingAction === `hide-${discussion.id}`}
-                                  >
-                                    <EyeOff className="h-4 w-4 mr-2" />
-                                    Masquer
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem
-                                    onClick={() => handleModerationAction('show', discussion.id)}
-                                    disabled={isLoadingAction === `show-${discussion.id}`}
-                                  >
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    Afficher
-                                  </DropdownMenuItem>
+                                {hasModeratorAccess && (
+                                  <>
+                                    <Separator />
+                                    
+                                    {!discussion.is_pinned ? (
+                                      <DropdownMenuItem
+                                        onClick={() => handleModerationAction('pin', discussion.id)}
+                                        disabled={isLoadingAction === `pin-${discussion.id}`}
+                                      >
+                                        <Pin className="h-4 w-4 mr-2" />
+                                        Épingler
+                                      </DropdownMenuItem>
+                                    ) : (
+                                      <DropdownMenuItem
+                                        onClick={() => handleModerationAction('unpin', discussion.id)}
+                                        disabled={isLoadingAction === `unpin-${discussion.id}`}
+                                      >
+                                        <Pin className="h-4 w-4 mr-2" />
+                                        Désépingler
+                                      </DropdownMenuItem>
+                                    )}
+
+                                    {discussion.status === 'ACTIVE' ? (
+                                      <DropdownMenuItem
+                                        onClick={() => handleModerationAction('hide', discussion.id)}
+                                        disabled={isLoadingAction === `hide-${discussion.id}`}
+                                        className="text-orange-600"
+                                      >
+                                        <EyeOff className="h-4 w-4 mr-2" />
+                                        Masquer
+                                      </DropdownMenuItem>
+                                    ) : (
+                                      <DropdownMenuItem
+                                        onClick={() => handleModerationAction('show', discussion.id)}
+                                        disabled={isLoadingAction === `show-${discussion.id}`}
+                                        className="text-green-600"
+                                      >
+                                        <Eye className="h-4 w-4 mr-2" />
+                                        Afficher
+                                      </DropdownMenuItem>
+                                    )}
+
+                                    <DropdownMenuItem
+                                      onClick={() => handleModerationAction('resolve', discussion.id)}
+                                      disabled={isLoadingAction === `resolve-${discussion.id}`}
+                                      className="text-blue-600"
+                                    >
+                                      <CheckCircle className="h-4 w-4 mr-2" />
+                                      Résoudre
+                                    </DropdownMenuItem>
+
+                                    <Separator />
+
+                                    <DropdownMenuItem
+                                      onClick={() => handleModerationAction('delete', discussion.id)}
+                                      disabled={isLoadingAction === `delete-${discussion.id}`}
+                                      className="text-red-600"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Supprimer définitivement
+                                    </DropdownMenuItem>
+                                  </>
                                 )}
-                                
-                                {discussion.status === 'FLAGGED' && (
-                                  <DropdownMenuItem
-                                    onClick={() => handleModerationAction('resolve', discussion.id)}
-                                    disabled={isLoadingAction === `resolve-${discussion.id}`}
-                                  >
-                                    <CheckCircle className="h-4 w-4 mr-2" />
-                                    Résoudre
-                                  </DropdownMenuItem>
-                                )}
-                                
-                                <Separator />
-                                
-                                <DropdownMenuItem
-                                  onClick={() => handleModerationAction('delete', discussion.id)}
-                                  disabled={isLoadingAction === `delete-${discussion.id}`}
-                                  className="text-red-600"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Supprimer définitivement
-                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>

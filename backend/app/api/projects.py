@@ -135,11 +135,29 @@ async def get_all_discussions(
 ):
     """
     Récupère toutes les discussions/commentaires avec pagination
+    Filtre selon les projets accessibles à l'utilisateur
     """
+    # Construire la requête de base pour les commentaires
     query = db.query(Comment).filter(
-        Comment.status == CommentStatus.ACTIVE,
+        # Comment.status == CommentStatus.ACTIVE,  # Commenté temporairement pour voir tous les statuts
         Comment.parent_id.is_(None)  # Seulement les commentaires de premier niveau
     )
+    
+    # RESTRICTION D'ACCÈS : Ne montrer que les commentaires des projets accessibles
+    if current_user.role.value != 'admin':
+        # Jointure avec les projets et application des filtres d'accès
+        query = query.join(Project, Comment.project_id == Project.id)
+        query = query.filter(
+            or_(
+                # Projets publics (active/completed)
+                Project.status.in_([ProjectStatus.ACTIVE, ProjectStatus.COMPLETED]),
+                # Projets de l'utilisateur (tous statuts)
+                Project.owner_id == current_user.id
+            )
+        )
+    else:
+        # Admin peut voir tous les commentaires, mais on joint quand même pour optimiser
+        query = query.join(Project, Comment.project_id == Project.id)
     
     # Filtres
     if comment_type:
@@ -153,14 +171,20 @@ async def get_all_discussions(
         search_term = f"%{search}%"
         query = query.filter(Comment.content.ilike(search_term))
     
-    # Jointure avec les tables liées pour optimiser les requêtes
-    query = query.join(Comment.author).join(Comment.project)
+    # Jointure avec l'auteur pour optimiser les requêtes
+    query = query.join(Comment.author)
     
-    # Tri
+    # Tri avec priorité aux commentaires épinglés
     if sort_order == "desc":
-        query = query.order_by(getattr(Comment, sort_by).desc())
+        query = query.order_by(
+            Comment.is_pinned.desc(),  # Épinglés en premier (True > False)
+            getattr(Comment, sort_by).desc()  # Puis tri normal
+        )
     else:
-        query = query.order_by(getattr(Comment, sort_by).asc())
+        query = query.order_by(
+            Comment.is_pinned.desc(),  # Épinglés en premier (True > False)
+            getattr(Comment, sort_by).asc()  # Puis tri normal
+        )
     
     # Pagination
     total = query.count()
@@ -604,11 +628,14 @@ async def get_project_comments(
             detail="Projet non trouvé"
         )
     
-    # Récupérer tous les commentaires actifs du projet
+    # Récupérer tous les commentaires actifs du projet, épinglés en premier
     comments = db.query(Comment).filter(
         Comment.project_id == project_id,
         Comment.status == CommentStatus.ACTIVE
-    ).order_by(Comment.created_at.asc()).all()
+    ).order_by(
+        Comment.is_pinned.desc(),  # Épinglés en premier
+        Comment.created_at.asc()   # Puis par ordre chronologique pour construire l'arbre
+    ).all()
     
     def format_comment(comment):
         """Formater un commentaire pour le frontend"""
@@ -654,8 +681,17 @@ async def get_project_comments(
                 if parent_comment:
                     parent_comment["replies"].append(formatted_comment)
         
-        # Trier les commentaires racine par date (plus récent en premier)
-        root_comments.sort(key=lambda x: x["created_at"], reverse=True)
+        # Trier les commentaires racine : épinglés en premier, puis par date (plus récent en premier)
+        def sort_key(comment):
+            # Les épinglés ont priorité 0, les non-épinglés ont priorité 1
+            priority = 0 if comment.get("is_pinned", False) else 1
+            # Date en négatif pour avoir les plus récents en premier
+            from datetime import datetime
+            date_obj = datetime.fromisoformat(comment["created_at"].replace('Z', '+00:00'))
+            timestamp = -date_obj.timestamp()
+            return (priority, timestamp)
+        
+        root_comments.sort(key=sort_key)
         
         # Trier les réponses par date (plus ancien en premier pour suivre la conversation)
         def sort_replies_recursively(comment):
@@ -1234,3 +1270,71 @@ async def fix_all_counters(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur lors de la correction des compteurs: {str(e)}"
         ) 
+
+
+@router.post("/{project_id}/comments/{comment_id}/flag")
+async def flag_comment(
+    project_id: int,
+    comment_id: int,
+    reason: str = "",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Signaler un commentaire comme inapproprié
+    """
+    # Récupérer le commentaire
+    comment = db.query(Comment).filter(
+        Comment.id == comment_id,
+        Comment.project_id == project_id
+    ).first()
+    
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Commentaire non trouvé"
+        )
+    
+    # Empêcher l'auto-signalement
+    if comment.author_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Vous ne pouvez pas signaler votre propre commentaire"
+        )
+    
+    # Récupérer les informations du projet
+    project = db.query(Project).filter(Project.id == project_id).first()
+    
+    # Marquer comme signalé et incrémenter le compteur
+    comment.status = CommentStatus.FLAGGED
+    comment.flags_count += 1
+    comment.updated_at = datetime.utcnow()
+    
+    # Notifier les modérateurs
+    from app.api.notifications import create_notification
+    moderators = db.query(User).filter(User.role.in_(['admin', 'moderator'])).all()
+    
+    for moderator in moderators:
+        await create_notification(
+            type="moderation",
+            title="Commentaire signalé",
+            message=f"Un commentaire sur '{project.title}' a été signalé par {current_user.name}",
+            recipient_id=str(moderator.id),
+            sender_id=str(current_user.id),
+            data={
+                "project_id": project_id,
+                "project_name": project.title,
+                "comment_id": comment_id,
+                "reason": reason,
+                "action": "flag"
+            }
+        )
+    
+    # Sauvegarder
+    db.commit()
+    
+    return {
+        "message": "Commentaire signalé avec succès",
+        "comment_id": comment_id,
+        "flags_count": comment.flags_count
+    } 

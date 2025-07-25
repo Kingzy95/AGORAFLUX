@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Plus, Filter, Search, SortAsc, SortDesc } from 'lucide-react';
+import { MessageSquare, Plus, Filter, Search, SortAsc, SortDesc, RefreshCw } from 'lucide-react';
 import CommentThread from './CommentThread';
 import { BackendComment } from '../../services/api';
 import apiService from '../../services/api';
@@ -42,7 +42,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
     // Recharger périodiquement pour détecter les changements de modération
     const interval = setInterval(() => {
       loadComments();
-    }, 30000); // Recharger toutes les 30 secondes
+    }, 10000); // Recharger toutes les 10 secondes (au lieu de 30)
     
     return () => clearInterval(interval);
   }, [projectId]);
@@ -206,6 +206,15 @@ const CommentSection: React.FC<CommentSectionProps> = ({
           
           {/* Filtres et tri */}
           <div className="flex items-center gap-3">
+            <button
+              onClick={loadComments}
+              disabled={loading}
+              className="px-3 py-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+              title="Actualiser les commentaires"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value as any)}

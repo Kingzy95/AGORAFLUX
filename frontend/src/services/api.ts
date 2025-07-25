@@ -399,6 +399,13 @@ class ApiService {
     return this.moderateComment(projectId, commentId, 'unpin');
   }
 
+  async flagComment(projectId: number, commentId: number, reason?: string) {
+    const response = await this.api.post(`/projects/${projectId}/comments/${commentId}/flag`, {
+      reason: reason || ""
+    });
+    return response.data;
+  }
+
   async resolveComment(projectId: number, commentId: number, reason?: string) {
     return this.moderateComment(projectId, commentId, 'resolve', reason);
   }
