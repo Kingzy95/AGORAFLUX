@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
+from loguru import logger
 
 from ..models.user import User
 from ..api.dependencies import require_admin
@@ -303,13 +304,22 @@ async def get_all_datasets(limit: int = 100):
         for dataset in datasets:
             # Récupérer un échantillon de données
             sample_data = []
+            data_type = 'unknown'
+            
             if dataset.processing_config and 'data' in dataset.processing_config:
                 sample_data = dataset.processing_config['data'][:5]  # 5 premiers enregistrements
+                data_type = dataset.processing_config.get('data_type', 'unknown')
+            elif dataset.file_path:
+                # Pour les datasets uploadés, utiliser le type de fichier
+                if dataset.type:
+                    data_type = f'uploaded_{dataset.type.value}'
+                else:
+                    data_type = 'uploaded_file'
             
             result.append({
                 "id": dataset.id,
                 "name": dataset.name,
-                "data_type": dataset.processing_config.get('data_type', 'unknown') if dataset.processing_config else 'unknown',
+                "data_type": data_type,
                 "total_records": dataset.rows_count or 0,
                 "quality_score": dataset.overall_quality_score or 0.0,
                 "sample_data": sample_data,
@@ -332,10 +342,14 @@ async def get_all_datasets(limit: int = 100):
 async def get_dataset_data(dataset_id: int, limit: int = 100):
     """
     Retourne les données d'un dataset pour les visualisations
+    Support des datasets du pipeline ET des uploads directs
     """
     from ..core.database import get_db
-    from ..models.dataset import Dataset
+    from ..models.dataset import Dataset, DatasetType
     from sqlalchemy.orm import Session
+    import pandas as pd
+    import json
+    import os
     
     db_gen = get_db()
     db = next(db_gen)
@@ -349,19 +363,52 @@ async def get_dataset_data(dataset_id: int, limit: int = 100):
                 detail=f"Dataset {dataset_id} non trouvé"
             )
         
-        # Retourne les données depuis processing_config
         data = []
+        data_type = 'unknown'
+        
+        # Cas 1: Dataset du pipeline (données dans processing_config)
         if dataset.processing_config and 'data' in dataset.processing_config:
             data = dataset.processing_config['data'][:limit]
+            data_type = dataset.processing_config.get('data_type', 'unknown')
+        
+        # Cas 2: Dataset uploadé (données dans un fichier)
+        elif dataset.file_path and os.path.exists(dataset.file_path):
+            try:
+                if dataset.type == DatasetType.CSV:
+                    df = pd.read_csv(dataset.file_path)
+                    data = df.head(limit).to_dict('records')
+                    data_type = 'uploaded_csv'
+                    
+                elif dataset.type == DatasetType.JSON:
+                    with open(dataset.file_path, 'r', encoding='utf-8') as f:
+                        json_data = json.load(f)
+                    
+                    if isinstance(json_data, list):
+                        data = json_data[:limit]
+                    elif isinstance(json_data, dict):
+                        data = [json_data]
+                    data_type = 'uploaded_json'
+                    
+                elif dataset.type == DatasetType.EXCEL:
+                    df = pd.read_excel(dataset.file_path)
+                    data = df.head(limit).to_dict('records')
+                    data_type = 'uploaded_excel'
+                    
+            except Exception as e:
+                logger.error(f"Erreur lecture fichier {dataset.file_path}: {e}")
+                # Si erreur de lecture, retourner des données vides mais pas d'erreur HTTP
+                data = []
+                data_type = f'error_reading_{dataset.type.value}'
         
         return {
             "dataset_id": dataset_id,
             "dataset_name": dataset.name,
-            "data_type": dataset.processing_config.get('data', [{}])[0].get('data_type', 'unknown') if data else 'unknown',
+            "data_type": data_type,
             "total_records": len(data),
             "data": data,
             "quality_score": dataset.overall_quality_score,
-            "retrieved_at": dataset.processing_config.get('last_processed') if dataset.processing_config else None
+            "retrieved_at": dataset.processing_config.get('last_processed') if dataset.processing_config else None,
+            "source_type": "pipeline" if dataset.processing_config and 'data' in dataset.processing_config else "uploaded_file"
         }
         
     finally:

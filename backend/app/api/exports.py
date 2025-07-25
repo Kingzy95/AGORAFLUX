@@ -24,7 +24,7 @@ try:
     from reportlab.graphics.charts.linecharts import HorizontalLineChart
     from reportlab.graphics.charts.barcharts import VerticalBarChart
     from reportlab.graphics.charts.piecharts import Pie
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
     REPORTLAB_AVAILABLE = True
 except ImportError:
     REPORTLAB_AVAILABLE = False
@@ -38,6 +38,7 @@ from app.core.database import get_db
 from app.api.dependencies import get_current_user
 from app.models.user import User
 from app.api.notifications import create_notification
+from app.services.reports_data import get_reports_data_service
 
 router = APIRouter()
 
@@ -165,12 +166,61 @@ export_store = {
 }
 
 
-def generate_professional_pdf(report_data: dict, file_path: str):
+def generate_professional_pdf(report_data: dict, file_path: str, db: Session):
     """
-    Génère un PDF professionnel avec ReportLab
+    Génère un PDF professionnel avec ReportLab en utilisant les vraies données
     """
     if not REPORTLAB_AVAILABLE:
         raise ImportError("ReportLab n'est pas installé. Impossible de générer le PDF.")
+
+    try:
+        # Récupérer le service de données réelles
+        reports_service = get_reports_data_service(db)
+        
+        # Récupérer les vraies données pour la période
+        period_start = report_data['period_start']
+        period_end = report_data['period_end']
+        
+        # Vérifier que les dates sont bien des objets datetime
+        if not isinstance(period_start, datetime):
+            raise ValueError(f"period_start doit être un objet datetime, reçu: {type(period_start)}")
+        if not isinstance(period_end, datetime):
+            raise ValueError(f"period_end doit être un objet datetime, reçu: {type(period_end)}")
+        
+        global_stats = reports_service.get_global_stats(period_start, period_end)
+        engagement_stats = reports_service.get_user_engagement_stats(period_start, period_end)
+        project_stats = reports_service.get_project_stats(period_start, period_end)
+        datasets_stats = reports_service.get_datasets_stats(period_start, period_end)
+
+    except Exception as e:
+        # Log l'erreur spécifique de récupération des données
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Erreur lors de la récupération des données pour le PDF: {str(e)}")
+        
+        # Utiliser des données par défaut en cas d'erreur
+        global_stats = {
+            'total_users': 0,
+            'active_projects': 0,
+            'unique_participants': 0,
+            'comments_published': 0,
+            'datasets_analyzed': 0,
+            'new_projects': 0,
+            'evolution': {'projects': 0, 'participants': 0, 'comments': 0}
+        }
+        engagement_stats = {
+            'top_contributors': [],
+            'comment_types': {},
+            'moderation': {'flagged': 0, 'hidden': 0}
+        }
+        project_stats = {
+            'by_status': {},
+            'most_active': [],
+            'avg_comments_per_project': 0
+        }
+        datasets_stats = {
+            'avg_quality_score': 0.0
+        }
 
     doc = SimpleDocTemplate(file_path, pagesize=A4)
     styles = getSampleStyleSheet()
@@ -200,8 +250,9 @@ def generate_professional_pdf(report_data: dict, file_path: str):
         'CustomNormal',
         parent=styles['Normal'],
         fontSize=11,
+        leading=14,
         spaceAfter=12,
-        textColor=colors.HexColor('#4b5563')
+        alignment=TA_JUSTIFY
     )
     
     # En-tête du rapport
@@ -240,49 +291,38 @@ def generate_professional_pdf(report_data: dict, file_path: str):
     story.append(info_table)
     story.append(Spacer(1, 0.5*inch))
     
-    # Résumé exécutif
+    # Résumé exécutif basé sur les vraies données
     story.append(Paragraph("Résumé Exécutif", subtitle_style))
     executive_summary = f"""
-    Ce rapport présente une analyse complète des données de la plateforme AgoraFlux pour la période du 
-    {report_data['period_start'].strftime('%d/%m/%Y')} au {report_data['period_end'].strftime('%d/%m/%Y')}. 
-    Les indicateurs clés montrent une participation citoyenne active avec {len(export_store.get('exports', []))} exports réalisés 
-    et {len(export_store.get('reports', []))} rapports générés.
+    Ce rapport présente les données réelles d'activité de la plateforme AgoraFlux pour la période du 
+    {period_start.strftime('%d/%m/%Y')} au {period_end.strftime('%d/%m/%Y')}.
+    
+    <b>Points clés de la période :</b>
+    • {global_stats['active_projects']} projets actifs avec une évolution de {global_stats['evolution']['projects']:+.1f}%
+    • {global_stats['unique_participants']} participants uniques avec une évolution de {global_stats['evolution']['participants']:+.1f}%
+    • {global_stats['comments_published']} commentaires publiés avec une évolution de {global_stats['evolution']['comments']:+.1f}%
+    • {global_stats['datasets_analyzed']} datasets analysés
+    • {global_stats['new_projects']} nouveaux projets créés
+    
+    La plateforme compte actuellement {global_stats['total_users']} utilisateurs actifs au total.
     """
     story.append(Paragraph(executive_summary, normal_style))
     story.append(Spacer(1, 0.3*inch))
     
-    # Statistiques principales
+    # Statistiques principales avec vraies données
     story.append(Paragraph("Statistiques Principales", subtitle_style))
     
-    # Données simulées basées sur le type de rapport
-    if report_data['template_id'] == 'monthly-summary':
-        stats_data = [
-            ['Métrique', 'Valeur', 'Évolution'],
-            ['Projets actifs', '24', '+12%'],
-            ['Participants uniques', '1,847', '+8%'],
-            ['Commentaires publiés', '156', '+23%'],
-            ['Datasets analysés', '12', '+15%'],
-            ['Exports réalisés', str(len(export_store.get('exports', []))), '+18%']
-        ]
-    elif report_data['template_id'] == 'quarterly-report':
-        stats_data = [
-            ['Métrique', 'Valeur', 'Évolution'],
-            ['Projets créés', '72', '+28%'],
-            ['Participants totaux', '5,234', '+15%'],
-            ['Heures d\'engagement', '12,450', '+32%'],
-            ['Satisfaction moyenne', '4.2/5', '+0.3'],
-            ['Taux de participation', '68%', '+5%']
-        ]
-    else:  # annual ou custom
-        stats_data = [
-            ['Métrique', 'Valeur', 'Évolution'],
-            ['Projets totaux', '287', '+45%'],
-            ['Utilisateurs actifs', '15,623', '+62%'],
-            ['Données analysées (GB)', '2.8', '+125%'],
-            ['Rapports générés', '145', '+89%'],
-            ['Impact citoyen', 'Élevé', '+2 niveaux']
-        ]
-    
+    # Créer un tableau avec les vraies statistiques
+    stats_data = [
+        ['Métrique', 'Valeur', 'Évolution'],
+        ['Projets actifs', str(global_stats['active_projects']), f"{global_stats['evolution']['projects']:+.1f}%"],
+        ['Participants uniques', str(global_stats['unique_participants']), f"{global_stats['evolution']['participants']:+.1f}%"],
+        ['Commentaires publiés', str(global_stats['comments_published']), f"{global_stats['evolution']['comments']:+.1f}%"],
+        ['Datasets analysés', str(global_stats['datasets_analyzed']), 'N/A'],
+        ['Nouveaux projets', str(global_stats['new_projects']), 'N/A'],
+        ['Score qualité moyen', f"{datasets_stats['avg_quality_score']:.1f}/5", 'N/A']
+    ]
+
     stats_table = Table(stats_data, colWidths=[2.5*inch, 1.5*inch, 1.5*inch])
     stats_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e40af')),
@@ -304,44 +344,112 @@ def generate_professional_pdf(report_data: dict, file_path: str):
     story.append(stats_table)
     story.append(Spacer(1, 0.4*inch))
     
-    # Analyse des tendances
-    story.append(Paragraph("Analyse des Tendances", subtitle_style))
-    trends_text = f"""
-    L'analyse des données révèle plusieurs tendances importantes :
+    # Analyse de l'engagement utilisateur
+    story.append(Paragraph("Engagement Utilisateur", subtitle_style))
     
-    <b>• Participation croissante :</b> Une augmentation constante de l'engagement citoyen avec un pic 
-    d'activité observé durant la période analysée.
+    top_contributors_text = "Aucun contributeur actif pour cette période."
+    if engagement_stats['top_contributors']:
+        contributors_list = []
+        for i, contrib in enumerate(engagement_stats['top_contributors'][:5], 1):
+            contributors_list.append(f"{i}. {contrib['name']} ({contrib['role']}) - {contrib['comments_count']} commentaires")
+        top_contributors_text = "<br/>".join(contributors_list)
     
-    <b>• Diversification des projets :</b> Les citoyens s'intéressent à une gamme plus large de sujets, 
-    notamment l'environnement et l'urbanisme.
+    engagement_text = f"""
+    <b>Top contributeurs de la période :</b><br/>
+    {top_contributors_text}
     
-    <b>• Qualité des contributions :</b> Les commentaires et propositions montrent une amélioration 
-    qualitative significative.
-    
-    <b>• Adoption technologique :</b> L'utilisation des outils d'export et de visualisation est en 
-    forte progression.
+    <b>Répartition des types de commentaires :</b><br/>
     """
-    story.append(Paragraph(trends_text, normal_style))
+    
+    # Ajouter les stats des types de commentaires
+    if engagement_stats['comment_types']:
+        for comment_type, count in engagement_stats['comment_types'].items():
+            type_label = {
+                'comment': 'Commentaires',
+                'suggestion': 'Suggestions', 
+                'question': 'Questions',
+                'annotation': 'Annotations'
+            }.get(comment_type, comment_type.title())
+            engagement_text += f"• {type_label}: {count}<br/>"
+    else:
+        engagement_text += "• Aucune activité de commentaire détectée<br/>"
+    
+    # Stats de modération
+    engagement_text += f"""
+    <br/><b>Modération :</b><br/>
+    • Commentaires signalés: {engagement_stats['moderation']['flagged']}<br/>
+    • Commentaires masqués: {engagement_stats['moderation']['hidden']}
+    """
+    
+    story.append(Paragraph(engagement_text, normal_style))
     story.append(Spacer(1, 0.3*inch))
     
-    # Recommandations
-    story.append(Paragraph("Recommandations", subtitle_style))
-    recommendations = f"""
-    Basé sur l'analyse des données, nous recommandons :
+    # Analyse des projets
+    story.append(Paragraph("Analyse des Projets", subtitle_style))
     
-    <b>1. Renforcement de l'engagement :</b> Développer de nouveaux mécanismes d'interaction pour 
-    maintenir la dynamique positive observée.
-    
-    <b>2. Amélioration des outils :</b> Continuer à enrichir les fonctionnalités d'analyse et 
-    d'export pour répondre aux besoins croissants.
-    
-    <b>3. Formation et support :</b> Proposer des sessions de formation pour maximiser l'utilisation 
-    des outils disponibles.
-    
-    <b>4. Expansion thématique :</b> Explorer de nouveaux domaines d'application en fonction des 
-    intérêts exprimés par la communauté.
+    projects_text = f"""
+    <b>Répartition des projets par statut :</b><br/>
     """
-    story.append(Paragraph(recommendations, normal_style))
+    
+    if project_stats['by_status']:
+        status_labels = {
+            'draft': 'Brouillons',
+            'active': 'Actifs',
+            'completed': 'Terminés',
+            'archived': 'Archivés',
+            'suspended': 'Suspendus'
+        }
+        for status, count in project_stats['by_status'].items():
+            label = status_labels.get(status, status.title())
+            projects_text += f"• {label}: {count}<br/>"
+    else:
+        projects_text += "• Aucun projet créé pendant cette période<br/>"
+    
+    projects_text += f"""<br/><b>Projets les plus actifs :</b><br/>"""
+    
+    if project_stats['most_active']:
+        for i, project in enumerate(project_stats['most_active'][:5], 1):
+            projects_text += f"{i}. {project['title']} - {project['comments_count']} commentaires<br/>"
+    else:
+        projects_text += "• Aucune activité de commentaire détectée<br/>"
+    
+    projects_text += f"""<br/>Moyenne de commentaires par projet: {project_stats['avg_comments_per_project']}"""
+    
+    story.append(Paragraph(projects_text, normal_style))
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Recommandations basées sur les données réelles
+    story.append(Paragraph("Recommandations", subtitle_style))
+    
+    # Générer des recommandations basées sur les vraies données
+    recommendations = []
+    
+    if global_stats['evolution']['participants'] > 0:
+        recommendations.append("Maintenir la dynamique positive d'engagement des utilisateurs observée.")
+    elif global_stats['evolution']['participants'] < 0:
+        recommendations.append("Développer des stratégies pour stimuler l'engagement des utilisateurs.")
+    
+    if global_stats['evolution']['projects'] > 0:
+        recommendations.append("Continuer à encourager la création de nouveaux projets.")
+    elif global_stats['active_projects'] == 0:
+        recommendations.append("Initier des projets pilotes pour dynamiser la plateforme.")
+    
+    if datasets_stats['avg_quality_score'] < 3.0:
+        recommendations.append("Améliorer les processus de validation et nettoyage des données.")
+    elif datasets_stats['avg_quality_score'] > 4.0:
+        recommendations.append("Valoriser les bonnes pratiques de gestion des données.")
+    
+    if engagement_stats['moderation']['flagged'] > 0:
+        recommendations.append("Renforcer les mécanismes de modération communautaire.")
+    
+    if not recommendations:
+        recommendations.append("Continuer le développement et l'amélioration de la plateforme.")
+    
+    recommendations_text = ""
+    for i, rec in enumerate(recommendations, 1):
+        recommendations_text += f"<b>{i}.</b> {rec}<br/><br/>"
+    
+    story.append(Paragraph(recommendations_text, normal_style))
     story.append(Spacer(1, 0.3*inch))
     
     # Pied de page avec informations techniques
@@ -356,7 +464,7 @@ def generate_professional_pdf(report_data: dict, file_path: str):
     
     story.append(Paragraph("___", footer_style))
     story.append(Paragraph(f"Rapport généré automatiquement par AgoraFlux • {datetime.now().strftime('%d/%m/%Y %H:%M')}", footer_style))
-    story.append(Paragraph("Plateforme de Simulation et Collaboration Citoyenne", footer_style))
+    story.append(Paragraph("Plateforme de Simulation et Collaboration Citoyenne • Données réelles", footer_style))
     
     # Construire le PDF
     doc.build(story)
@@ -380,7 +488,7 @@ async def generate_report(
     db: Session = Depends(get_db)
 ):
     """
-    Génère un rapport PDF basé sur un template
+    Génère un rapport PDF basé sur un template avec les vraies données
     """
     # Trouver le template
     template = next((t for t in export_store["templates"] if t["id"] == report_request.template_id), None)
@@ -390,23 +498,49 @@ async def generate_report(
             detail="Template de rapport non trouvé"
         )
     
-    # Générer le rapport (simulation)
+    # Générer le rapport avec les vraies données
     report_id = str(uuid.uuid4())
     file_name = f"rapport_{template['template_type']}_{report_request.period_start.strftime('%Y%m%d')}.pdf"
     
-    # Simuler la génération du rapport
-    import time
-    import random
+    # Créer un fichier temporaire pour calculer la taille réelle
+    temp_file_for_size = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+    temp_file_for_size.close()
     
-    # Taille de fichier simulée basée sur le type de rapport
-    base_sizes = {
-        "monthly": 1.5 * 1024 * 1024,    # 1.5MB
-        "quarterly": 3.2 * 1024 * 1024,  # 3.2MB
-        "annual": 8.5 * 1024 * 1024,     # 8.5MB
-        "custom": 2.1 * 1024 * 1024      # 2.1MB
-    }
-    
-    file_size = int(base_sizes.get(template["template_type"], 2 * 1024 * 1024) * random.uniform(0.8, 1.2))
+    try:
+        # Préparer les données du rapport
+        report_data = {
+            "id": report_id,
+            "title": report_request.title,
+            "template_id": report_request.template_id,
+            "template_name": template["name"],
+            "period_start": report_request.period_start,
+            "period_end": report_request.period_end,
+            "generated_at": datetime.now(),
+            "user_name": f"{current_user.first_name} {current_user.last_name}"
+        }
+        
+        # Générer le PDF temporaire pour calculer la taille
+        generate_professional_pdf(report_data, temp_file_for_size.name, db)
+        
+        # Calculer la taille réelle du fichier
+        file_size = os.path.getsize(temp_file_for_size.name)
+        
+        # Nettoyer le fichier temporaire
+        os.unlink(temp_file_for_size.name)
+        
+    except Exception as e:
+        # Nettoyer en cas d'erreur
+        if os.path.exists(temp_file_for_size.name):
+            os.unlink(temp_file_for_size.name)
+        
+        # Utiliser une taille estimée en cas d'erreur
+        base_sizes = {
+            "monthly": 1.5 * 1024 * 1024,    # 1.5MB
+            "quarterly": 3.2 * 1024 * 1024,  # 3.2MB
+            "annual": 8.5 * 1024 * 1024,     # 8.5MB
+            "custom": 2.1 * 1024 * 1024      # 2.1MB
+        }
+        file_size = int(base_sizes.get(template["template_type"], 2 * 1024 * 1024))
     
     new_report = {
         "id": report_id,
@@ -858,8 +992,32 @@ async def download_report(
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
         temp_file.close()
         
-        # Générer le PDF professionnel
-        generate_professional_pdf(report, temp_file.name)
+        # Préparer les données du rapport pour la génération
+        # S'assurer que les dates sont des objets datetime
+        period_start = report["period_start"]
+        period_end = report["period_end"]
+        generated_at = report["generated_at"]
+        
+        if isinstance(period_start, str):
+            period_start = datetime.fromisoformat(period_start.replace('Z', '+00:00'))
+        if isinstance(period_end, str):
+            period_end = datetime.fromisoformat(period_end.replace('Z', '+00:00'))
+        if isinstance(generated_at, str):
+            generated_at = datetime.fromisoformat(generated_at.replace('Z', '+00:00'))
+        
+        report_data = {
+            "id": report["id"],
+            "title": report["title"],
+            "template_id": report["template_id"],
+            "template_name": report["template_name"],
+            "period_start": period_start,
+            "period_end": period_end,
+            "generated_at": generated_at,
+            "user_name": report["user_name"]
+        }
+        
+        # Générer le PDF professionnel avec les vraies données
+        generate_professional_pdf(report_data, temp_file.name, db)
         
         # Incrémenter le compteur de téléchargements
         report["download_count"] = report.get("download_count", 0) + 1
@@ -877,6 +1035,15 @@ async def download_report(
         )
         
     except Exception as e:
+        # Nettoyer le fichier temporaire en cas d'erreur
+        if 'temp_file' in locals() and os.path.exists(temp_file.name):
+            os.unlink(temp_file.name)
+        
+        # Log l'erreur pour debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Erreur lors de la génération du PDF pour {file_name}: {str(e)}")
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erreur lors du téléchargement: {str(e)}"
