@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from loguru import logger
 
-from .sources import data_source_manager, get_mock_budget_data, get_mock_participation_data
+from .sources import data_source_manager
 from .processor import data_processor
 from .fusion import data_fusion
 from .documentation import auto_doc_generator
@@ -125,9 +125,8 @@ class DataPipeline:
             
         except Exception as e:
             logger.error(f" Erreur lors de l'acquisition: {str(e)}")
-            # Fallback vers données de test en cas d'erreur
-            logger.info("🔄 Basculement vers les données de test...")
-            return self._get_mock_data()
+            # Pas de fallback vers des données mock - lever l'exception
+            raise Exception(f"Échec de l'acquisition des données: {str(e)}")
     
     def _get_mock_data(self) -> Dict[str, Any]:
         """Retourne des données de test réalistes"""

@@ -112,14 +112,12 @@ async def run_pipeline(
     if request.source_keys:
         background_tasks.add_task(
             _run_partial_pipeline,
-            request.source_keys,
-            request.use_mock_data
+            request.source_keys
         )
         message = f"Pipeline partiel lancé pour sources: {request.source_keys}"
     else:
         background_tasks.add_task(
-            _run_full_pipeline,
-            request.use_mock_data
+            _run_full_pipeline
         )
         message = "Pipeline complet lancé en arrière-plan"
     
@@ -179,54 +177,11 @@ async def test_fusion(
     """
     Test spécifique de la fusion de données (admin seulement)
     """
-    try:
-        # Simuler des données traitées pour le test
-        from ..data.sources import get_mock_budget_data, get_mock_participation_data
-        from ..data.processor import data_processor
-        
-        # Préparer des données de test
-        mock_processed_data = {}
-        
-        # Données de participation
-        if request.use_mock_data:
-            participation_raw = {
-                'source': 'Mock Participation Data',
-                'data': get_mock_participation_data(),
-                'retrieved_at': '2024-01-01T00:00:00'
-            }
-            participation_processed = await data_processor.process_data(participation_raw, 'participation')
-            mock_processed_data['paris_participation'] = participation_processed
-            
-            # Données de budget
-            budget_raw = {
-                'source': 'Mock Budget Data', 
-                'data': get_mock_budget_data(),
-                'retrieved_at': '2024-01-01T00:00:00'
-            }
-            budget_processed = await data_processor.process_data(budget_raw, 'budget')
-            mock_processed_data['paris_budget'] = budget_processed
-        
-        # Test de fusion
-        fusion_result = await data_fusion.fuse_sources(
-            mock_processed_data,
-            fusion_type=request.fusion_type
-        )
-        
-        return {
-            "message": "Test de fusion réussi",
-            "fusion_type": request.fusion_type,
-            "sources_used": list(mock_processed_data.keys()),
-            "records_merged": fusion_result.records_merged,
-            "fusion_quality": fusion_result.quality_metrics,
-            "sample_fused_data": fusion_result.fused_data[:3] if fusion_result.fused_data else [],
-            "source_mapping": fusion_result.source_mapping
-        }
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erreur lors du test de fusion: {str(e)}"
-        )
+    # Les données mock ont été supprimées - ce endpoint nécessite de vraies données
+    raise HTTPException(
+        status_code=501,
+        detail="Les données de test mock ont été supprimées. Utilisez de vraies sources de données."
+    )
 
 
 @router.post("/test-documentation")
@@ -309,20 +264,20 @@ async def get_source_documentation(source_name: str):
     }
 
 
-async def _run_full_pipeline(use_mock_data: bool):
+async def _run_full_pipeline():
     """Fonction helper pour exécution pipeline complet en arrière-plan"""
     try:
-        result = await pipeline.run_full_pipeline(use_mock_data)
+        result = await pipeline.run_full_pipeline(use_mock_data=False)
         return result
     except Exception as e:
         print(f"Erreur pipeline complet: {e}")
         return {"error": str(e)}
 
 
-async def _run_partial_pipeline(source_keys: List[str], use_mock_data: bool):
+async def _run_partial_pipeline(source_keys: List[str]):
     """Fonction helper pour exécution pipeline partiel en arrière-plan"""
     try:
-        result = await pipeline.run_partial_pipeline(source_keys, use_mock_data)
+        result = await pipeline.run_partial_pipeline(source_keys, use_mock_data=False)
         return result
     except Exception as e:
         print(f"Erreur pipeline partiel: {e}")
