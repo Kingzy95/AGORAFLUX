@@ -59,20 +59,16 @@ def create_permissions_table():
                             text("""
                                 INSERT INTO project_permissions (
                                     user_id, project_id, role, granted_by_id, granted_at, is_active,
-                                    can_view_project, can_view_datasets, can_view_comments, can_view_analytics,
+                                    can_view_project, can_view_datasets, can_view_comments,
                                     can_edit_project, can_delete_project, can_upload_datasets, can_delete_datasets,
-                                    can_create_comments, can_edit_own_comments, can_delete_own_comments,
-                                    can_moderate_comments, can_pin_comments, can_hide_comments,
-                                    can_manage_permissions, can_invite_users, can_remove_users,
-                                    can_export_data, can_generate_reports
+                                    can_create_comments, can_edit_comments, can_delete_comments,
+                                    can_moderate_comments, can_manage_users, can_export_data
                                 ) VALUES (
-                                    :user_id, :project_id, 'owner', :granted_by_id, NOW(), TRUE,
+                                    :user_id, :project_id, 'ADMIN', :granted_by_id, NOW(), TRUE,
+                                    TRUE, TRUE, TRUE,
                                     TRUE, TRUE, TRUE, TRUE,
-                                    TRUE, TRUE, TRUE, TRUE,
                                     TRUE, TRUE, TRUE,
-                                    TRUE, TRUE, TRUE,
-                                    TRUE, TRUE, TRUE,
-                                    TRUE, TRUE
+                                    TRUE, TRUE, TRUE
                                 )
                             """),
                             {

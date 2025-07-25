@@ -11,6 +11,7 @@ import uuid
 import asyncio
 import os
 import shutil
+import re
 
 from app.core.database import get_db
 from app.api.dependencies import get_current_user

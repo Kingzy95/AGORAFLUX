@@ -14,6 +14,9 @@ from sqlalchemy import create_engine
 from app.core.config import settings
 from app.core.database import Base
 from app.models import User, Project, Dataset, Comment
+from app.models.user import UserRole
+from app.models.project import ProjectStatus, ProjectVisibility
+from app.models.dataset import DatasetType, DatasetStatus, DataQuality
 from app.schemas.user import UserCreate
 from app.schemas.project import ProjectCreate
 from app.schemas.dataset import DatasetCreate
@@ -56,38 +59,42 @@ def init_database():
         users_data = [
             {
                 "email": "admin@agoraflux.fr",
-                "username": "admin",
-                "full_name": "Admin AgoraFlux",
-                "hashed_password": hash_password("admin123"),
-                "role": "admin",
+                "first_name": "Admin",
+                "last_name": "AgoraFlux",
+                "password_hash": hash_password("admin123"),
+                "role": UserRole.ADMIN,
                 "is_active": True,
+                "is_verified": True,
                 "bio": "Administrateur de la plateforme AgoraFlux"
             },
             {
                 "email": "moderateur@agoraflux.fr", 
-                "username": "moderateur",
-                "full_name": "Jean Modérateur",
-                "hashed_password": hash_password("mod123"),
-                "role": "moderator",
+                "first_name": "Jean",
+                "last_name": "Modérateur",
+                "password_hash": hash_password("mod123"),
+                "role": UserRole.MODERATOR,
                 "is_active": True,
+                "is_verified": True,
                 "bio": "Modérateur expérimenté en données publiques"
             },
             {
                 "email": "utilisateur@agoraflux.fr",
-                "username": "utilisateur",
-                "full_name": "Pierre Utilisateur",
-                "hashed_password": hash_password("user123"),
-                "role": "user",
+                "first_name": "Pierre",
+                "last_name": "Utilisateur",
+                "password_hash": hash_password("user123"),
+                "role": UserRole.USER,
                 "is_active": True,
+                "is_verified": True,
                 "bio": "Utilisateur engagé dans la transparence des données publiques"
             },
             {
                 "email": "marie.dupont@agoraflux.fr",
-                "username": "marie.dupont",
-                "full_name": "Marie Dupont",
-                "hashed_password": hash_password("user123"),
-                "role": "user",
+                "first_name": "Marie",
+                "last_name": "Dupont",
+                "password_hash": hash_password("user123"),
+                "role": UserRole.USER,
                 "is_active": True,
+                "is_verified": True,
                 "bio": "Analyste de données et utilisatrice active"
             }
         ]
@@ -108,8 +115,8 @@ def init_database():
             slug="analyse-budget-municipal-paris-2024",
             description="Analyse collaborative du budget municipal de Paris pour l'année 2024, avec focus sur les dépenses par secteur et l'évolution des investissements.",
             owner_id=users[0].id,  # admin
-            status="active",
-            visibility="public",
+            status=ProjectStatus.ACTIVE,
+            visibility=ProjectVisibility.PUBLIC,
             tags="budget, paris, municipal, 2024, finances-publiques",
             methodology="Analyse des données budgétaires officielles avec visualisations interactives et espaces de discussion citoyenne.",
             objectives="Transparence budgétaire, Participation citoyenne, Analyse des priorités"
@@ -123,14 +130,15 @@ def init_database():
         # Créer un dataset
         dataset = Dataset(
             name="Budget Municipal Paris 2024 - Dépenses par secteur",
+            slug="budget-municipal-paris-2024-depenses-secteur",
             description="Données détaillées des dépenses budgétaires de la ville de Paris par secteur d'activité",
             source_url="https://opendata.paris.fr/explore/dataset/budget-municipal-2024",
-            dataset_type="csv",
+            type=DatasetType.CSV,
             file_size=2621440,  # 2.5MB en bytes
-            status="processed",
-            quality="excellent",
-            row_count=1250,
-            column_count=4,
+            status=DatasetStatus.PROCESSED,
+            quality=DataQuality.EXCELLENT,
+            rows_count=1250,
+            columns_count=4,
             missing_values_count=23,
             duplicate_rows_count=5,
             completeness_score=98.5,

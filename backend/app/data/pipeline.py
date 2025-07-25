@@ -373,7 +373,7 @@ class DataPipeline:
                 title=project_title,
                 slug=f"data-{data_type}-{source_key}".lower().replace('_', '-'),
                 description=f"Projet automatique pour les données {data_type} de la source {source_key}",
-                                 owner_id=9,  # Utilisateur admin par défaut
+                                 owner_id=1,  # Utilisateur admin par défaut
                 tags=f"{data_type}, données publiques, pipeline automatique",
                 objectives=f"Centraliser et traiter les données {data_type} pour AgoraFlux",
                 allow_comments=True,
@@ -404,7 +404,7 @@ class DataPipeline:
                 type=DatasetType.JSON,  # Stockage JSON pour flexibilité
                 status=DatasetStatus.PROCESSING,
                 project_id=project_id,
-                                 uploaded_by_id=9  # Utilisateur admin par défaut
+                                 uploaded_by_id=1  # Utilisateur admin par défaut
             )
             db.add(dataset)
             db.flush()  # Pour obtenir l'ID
